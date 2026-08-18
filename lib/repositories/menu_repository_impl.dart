@@ -48,6 +48,14 @@ class MenuRepositoryImpl implements MenuRepository {
   /// path without depending on the shipped placeholder.
   final String _menuUrl;
 
+  /// Guards against reporting the empty state once per screen: Home, Week and
+  /// Search each ask for the menu, but the student saw one prompt.
+  bool _reportedEmptyPrompt = false;
+
+  /// Whether the empty state has already been reported. Exposed for tests.
+  @visibleForTesting
+  bool get debugEmptyPromptReported => _reportedEmptyPrompt;
+
   /// True once [_menuUrl] points at a real published document.
   bool get _hasRemote =>
       _menuUrl.trim().isNotEmpty && _menuUrl != AppConfig.placeholderMenuUrl;
@@ -68,7 +76,10 @@ class MenuRepositoryImpl implements MenuRepository {
     final fetched = await refreshMenu();
     if (fetched.isSuccess) return fetched;
 
-    unawaited(_analytics.logEmptyPromptShown());
+    if (!_reportedEmptyPrompt) {
+      _reportedEmptyPrompt = true;
+      unawaited(_analytics.logEmptyPromptShown());
+    }
     return const Result<MenuSnapshot>.failure(
       Strings.failureEmpty,
       kind: FailureKind.empty,
@@ -199,6 +210,9 @@ class MenuRepositoryImpl implements MenuRepository {
     String document,
     MenuSource source,
   ) async {
+    // A menu exists again, so a later empty state is a new occurrence.
+    _reportedEmptyPrompt = false;
+
     final now = DateTime.now();
     try {
       final wrote = await _storage.writeMenuDocument(

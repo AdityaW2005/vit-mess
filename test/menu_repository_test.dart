@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vit_mess/core/config/app_config.dart';
 import 'package:vit_mess/core/utils/result.dart';
 import 'package:vit_mess/models/menu.dart';
+import 'package:vit_mess/repositories/analytics_repository_impl.dart';
 import 'package:vit_mess/repositories/menu_repository_impl.dart';
+import 'package:vit_mess/services/analytics_service.dart';
 import 'package:vit_mess/services/file_import_service.dart';
 import 'package:vit_mess/services/local_storage_service.dart';
 import 'package:vit_mess/services/menu_api_service.dart';
@@ -122,22 +124,55 @@ class FakeFileImportService implements FileImportService {
   }
 }
 
+/// Analytics that goes nowhere: the repository under test must work whether
+/// or not Firebase is configured.
+class SilentAnalyticsService implements AnalyticsService {
+  @override
+  bool get isAvailable => false;
+
+  @override
+  Future<bool> initialize() async => false;
+
+  @override
+  Future<void> setCollectionEnabled(bool enabled) async {}
+
+  @override
+  Future<void> logEvent(String name, [Map<String, Object>? parameters]) async {}
+
+  @override
+  Future<void> logScreenView(String screenName) async {}
+
+  @override
+  Future<void> setUserProperty(String name, String? value) async {}
+
+  @override
+  Null get navigatorObserver => null;
+}
+
 void main() {
   late FakeMenuApiService api;
   late FakeLocalStorageService storage;
   late FakeFileImportService files;
 
   /// A repository wired to a published menu URL, so the network path runs.
+  AnalyticsRepositoryImpl silentAnalytics() =>
+      AnalyticsRepositoryImpl(analytics: SilentAnalyticsService());
+
   MenuRepositoryImpl buildRepository() => MenuRepositoryImpl(
     api: api,
     storage: storage,
     files: files,
+    analytics: silentAnalytics(),
     menuUrl: 'https://menus.example.test/menu.json',
   );
 
   /// A repository in the shipped configuration, where no menu server exists.
-  MenuRepositoryImpl buildRepositoryWithoutRemote() =>
-      MenuRepositoryImpl(api: api, storage: storage, files: files);
+  MenuRepositoryImpl buildRepositoryWithoutRemote() => MenuRepositoryImpl(
+    api: api,
+    storage: storage,
+    files: files,
+    analytics: silentAnalytics(),
+  );
 
   PickedWorkbook workbook() => PickedWorkbook(
     name: 'menu.xlsx',
@@ -411,6 +446,20 @@ void main() {
       expect(result.isFailure, isTrue);
       expect(result.failureOrNull!.kind, FailureKind.empty);
       expect(api.fetchCount, 0);
+    });
+  });
+
+  group('empty-state reporting', () {
+    test('is reported once even though three screens ask', () async {
+      final repository = buildRepositoryWithoutRemote();
+
+      await repository.getMenu();
+      await repository.getMenu();
+      await repository.getMenu();
+
+      // Home, Week and Search each call getMenu on startup; the student saw
+      // one prompt, so it is one event.
+      expect(repository.debugEmptyPromptReported, isTrue);
     });
   });
 

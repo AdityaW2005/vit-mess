@@ -28,7 +28,7 @@ Platform minimums, already configured:
 | Platform | Minimum | Why |
 | --- | --- | --- |
 | Android | `flutter.minSdkVersion` with core library desugaring enabled | `flutter_local_notifications` needs `java.time` backported |
-| iOS | 14.0 | `file_picker_darwin` requires it |
+| iOS | 15.0 | `firebase_core` / `firebase_analytics` require it |
 
 ### Tests
 
@@ -376,6 +376,109 @@ lib/
 ```
 
 ---
+
+## Analytics
+
+Usage is measured with **Google Analytics for Firebase**.
+
+### Finishing the setup
+
+The code is complete and wired; it needs one per-project file that only your
+Google account can produce. Until it is added the app runs normally and simply
+collects nothing — `AnalyticsService.initialize` fails softly and every log
+call becomes a no-op.
+
+1. Create a Firebase project at <https://console.firebase.google.com> and add
+   two apps to it:
+   - **Android** — package name `com.vitap.messmate`
+   - **iOS** — the bundle id from `ios/Runner.xcodeproj`
+2. Download and drop in the config files:
+   - `android/app/google-services.json`
+   - `ios/Runner/GoogleService-Info.plist` (add it to the Runner target in Xcode)
+3. Apply the Google Services Gradle plugin.
+
+   In `android/settings.gradle.kts`, inside the `plugins { }` block:
+
+   ```kotlin
+   id("com.google.gms.google-services") version "4.4.2" apply false
+   ```
+
+   In `android/app/build.gradle.kts`, inside its `plugins { }` block:
+
+   ```kotlin
+   id("com.google.gms.google-services")
+   ```
+
+That is the whole change. Nothing in `lib/` needs editing — analytics detects
+that Firebase started and begins reporting.
+
+> The Gradle plugin **fails the build when `google-services.json` is missing**,
+> which is why it is not applied in the repository as shipped. Add the file and
+> the plugin together.
+
+### Verifying it works
+
+Events are echoed to the console in debug builds, so the wiring can be checked
+before Firebase exists:
+
+```bash
+adb logcat | grep "\[analytics\]"
+```
+
+Once Firebase is live, DebugView gives a real-time feed:
+
+```bash
+adb shell setprop debug.firebase.analytics.app com.vitap.messmate
+```
+
+### What is measured
+
+| Event | Fired when | Parameters |
+| --- | --- | --- |
+| `screen_view` | A tab or the onboarding screen is shown | `screen_name` |
+| `onboarding_completed` | First-run choice is saved | `mess_id`, `enabled` |
+| `menu_imported` | A spreadsheet is parsed and adopted | `month`, `day_count`, `tier_count` |
+| `menu_import_failed` | A chosen file could not be used | `reason` |
+| `menu_refreshed` / `menu_refresh_failed` | Remote document downloaded / failed | shape / `reason` |
+| `menu_empty_prompt_shown` | The import prompt is shown (once per empty state) | — |
+| `search` | A dish search settles | `search_term`, `result_count` |
+| `meal_expanded` | A meal card is opened | `meal_type`, `meal_status` |
+| `day_selected` | A day is chosen in the month browser | `days_from_today` |
+| `pull_to_refresh` | Home is pulled to refresh | — |
+| `tier_changed` | Subscription tier switched | `mess_id` (also set as a user property) |
+| `meal_timing_changed` | A window is overridden or reset | `meal_type`, `is_reset` |
+| `theme_changed` | Light/dark/system chosen | `theme_mode` |
+| `reminders_toggled` / `reminders_blocked` | Reminders switched / permission refused | `enabled` / — |
+| `analytics_toggled` | Consent changed | `enabled` |
+
+The vocabulary lives in `lib/core/constants/analytics_events.dart`, so the
+whole schema is reviewable in one file and no call site invents a name.
+
+### Privacy
+
+- **Consent is a first-class setting.** Settings → Privacy → *Share anonymous
+  usage data*, on by default, persisted with the rest of the settings. Turning
+  it off calls `setAnalyticsCollectionEnabled(false)`, so data stops leaving
+  the device rather than merely being dropped in the app.
+- **No dish names are sent.** Menu events carry only shape — month, day count,
+  tier count.
+- **No identifiers are set** beyond Firebase's own install id; the only user
+  property is the subscription tier.
+- `search_term` is the dish text a student typed, lowercased and truncated to
+  100 characters — the app's most valuable signal ("when is chicken biryani
+  next"), and what GA4's reserved `search` event is designed for.
+
+### Layering
+
+`AnalyticsService` is the only file that imports the Firebase SDK.
+`AnalyticsRepository` owns the schema and the consent gate; ViewModels depend
+on that interface, exactly like every other repository. Views never touch
+analytics — tab changes are reported by each tab's own ViewModel through
+`onShown()`, because an `IndexedStack` never pushes a route for the navigator
+observer to see.
+
+Analytics can never break the app: no method returns a failure, every SDK call
+is wrapped, and an unconfigured build degrades to console echoes.
 
 ## Notifications
 
