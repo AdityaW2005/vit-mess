@@ -10,5 +10,5 @@ import 'core/service_locator.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await setupServiceLocator();
-  runApp(const MessMateApp());
+  runApp(const MessUpApp());
 }

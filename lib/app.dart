@@ -31,9 +31,9 @@ class AppRoutes {
 ///
 /// Provides every ViewModel from the service locator, installs the light and
 /// dark themes, and routes the first frame to onboarding or the shell.
-class MessMateApp extends StatelessWidget {
+class MessUpApp extends StatelessWidget {
   /// Creates the app.
-  const MessMateApp({super.key});
+  const MessUpApp({super.key});
 
   @override
   Widget build(BuildContext context) => MultiProvider(

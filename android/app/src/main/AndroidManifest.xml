@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="MessMate"
+        android:label="MessUp"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

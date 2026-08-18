@@ -151,8 +151,6 @@ class _HomeContent extends StatelessWidget {
             ],
           ],
 
-          const SizedBox(height: 12),
-          _LastUpdatedLine(viewModel: viewModel),
         ],
       ),
     );
@@ -209,48 +207,6 @@ class _HomeHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// The quiet provenance line.
-///
-/// This is where a failed background refresh surfaces — as a note, never as an
-/// error banner, because the cached menu on screen is still correct.
-class _LastUpdatedLine extends StatelessWidget {
-  const _LastUpdatedLine({required this.viewModel});
-
-  final HomeViewModel viewModel;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.mess;
-    final textTheme = Theme.of(context).textTheme;
-    final source = viewModel.source;
-
-    final text = <String>[
-      if (source != null) Strings.menuSourceLabel(source),
-      Strings.lastUpdated(viewModel.lastUpdated, viewModel.now),
-    ].join('  ·  ');
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          if (viewModel.isShowingStaleData) ...<Widget>[
-            Icon(Icons.cloud_off_rounded, size: 14, color: colors.textMuted),
-            const SizedBox(width: 6),
-          ],
-          Flexible(
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: textTheme.bodySmall?.copyWith(color: colors.textMuted),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

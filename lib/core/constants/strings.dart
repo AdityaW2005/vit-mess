@@ -12,7 +12,7 @@ class Strings {
   const Strings._();
 
   // ------------------------------------------------------------------ app
-  static const String appName = 'MessMate';
+  static const String appName = 'MessUp';
   static const String appTagline = 'Your mess, minus the guesswork';
 
   // ----------------------------------------------------------- navigation
@@ -77,11 +77,7 @@ class Strings {
   // ------------------------------------------------------------- settings
   static const String settingsTitle = 'Settings';
   static const String settingsPlanSection = 'Mess plan';
-  static const String settingsPlanSubtitle =
-      'Switch the tier you are subscribed to.';
   static const String settingsTimingsSection = 'Meal timings';
-  static const String settingsTimingsSubtitle =
-      'The published times are approximate. Override them to match your mess.';
   static const String settingsTimingsReset = 'Reset to published times';
   static const String settingsTimingsOverridden = 'Custom';
   static const String settingsTimingsInvalid =
@@ -92,21 +88,18 @@ class Strings {
   static const String settingsRemindersMaster = 'Meal reminders';
   static const String settingsDataSection = 'Menu data';
   static const String settingsForceRefresh = 'Refresh now';
+  static const String settingsMenuLoaded = 'Menu loaded';
+  static const String settingsMenuMissing = 'No menu yet';
+  static const String settingsMenuMissingBody =
+      'Import the spreadsheet to see what is being served.';
   static const String settingsImport = 'Import a menu spreadsheet';
   static const String settingsImportSubtitle =
-      'Load the Excel file (.xlsx) shared by the mess office.';
+      'Load the Excel file (.xlsx) shared by the mess committee.';
   static const String settingsNeverUpdated = 'Never updated';
   static const String settingsAppearanceSection = 'Appearance';
-  static const String settingsAppearanceSubtitle =
-      'MessMate is designed dark-first, but both themes are here.';
   static const String settingsThemeSystem = 'System';
   static const String settingsThemeLight = 'Light';
   static const String settingsThemeDark = 'Dark';
-  static const String settingsPrivacySection = 'Privacy';
-  static const String settingsAnalytics = 'Share anonymous usage data';
-  static const String settingsAnalyticsSubtitle =
-      'Helps show which meals and dishes students actually look for. Never '
-      'includes your name, and can be switched off at any time.';
   static const String settingsAboutSection = 'About';
   static const String settingsSchemaLabel = 'Menu format';
   static const String settingsCampusLabel = 'Campus';
@@ -128,7 +121,7 @@ class Strings {
   // ------------------------------------------------------- import prompt
   static const String importPromptTitle = 'Import your mess menu';
   static const String importPromptBody =
-      'MessMate has no menu yet. Import the Excel sheet the mess office '
+      'MessUp has no menu yet. Import the Excel sheet the mess office '
       'shared, and it will be saved on this device for offline use.';
   static const String importPromptAction = 'Choose a spreadsheet';
   static const String importPromptRetry = 'Try downloading instead';
@@ -249,8 +242,7 @@ class Strings {
       DateFormat('d MMMM').format(date);
 
   /// `August 2026` for a month label.
-  static String formatMonth(DateTime date) =>
-      DateFormat('MMMM y').format(date);
+  static String formatMonth(DateTime date) => DateFormat('MMMM y').format(date);
 
   /// Turns a `yyyy-MM` contract key into `August 2026`.
   ///
@@ -293,6 +285,17 @@ class Strings {
     }
     return 'Updated ${DateFormat('d MMM').format(timestamp)}';
   }
+
+  /// `August 2026 · 31 days · 2 plans` — what a loaded document covers.
+  static String menuCoverage({
+    required String? month,
+    required int days,
+    required int tiers,
+  }) => <String>[
+    formatMonthKey(month),
+    '$days ${days == 1 ? 'day' : 'days'}',
+    '$tiers ${tiers == 1 ? 'plan' : 'plans'}',
+  ].join('  ·  ');
 
   /// `3 items` / `1 item`.
   static String itemCount(int count) =>

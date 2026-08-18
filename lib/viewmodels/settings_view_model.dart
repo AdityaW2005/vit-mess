@@ -91,6 +91,22 @@ class SettingsViewModel extends BaseViewModel {
   /// True when a menu server is published, so downloading is worth offering.
   bool get canRefreshFromServer => AppConfig.isRemoteConfigured;
 
+  /// True once a menu has been imported or downloaded.
+  bool get hasMenu => _snapshot != null;
+
+  /// The `yyyy-MM` the loaded document covers, or `null`.
+  String? get menuMonth => _snapshot?.menu.month;
+
+  /// Days the loaded document covers.
+  int get menuDayCount {
+    final messes = _snapshot?.menu.messes;
+    if (messes == null || messes.isEmpty) return 0;
+    return messes.first.days.length;
+  }
+
+  /// Tiers the loaded document carries.
+  int get menuTierCount => _snapshot?.menu.messes.length ?? 0;
+
   /// True while the file picker flow is running.
   bool get isImporting => _isImporting;
 

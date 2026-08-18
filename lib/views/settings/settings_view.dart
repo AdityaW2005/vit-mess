@@ -115,13 +115,11 @@ class _SettingsViewState extends State<SettingsView> {
 
             _Section(
               title: Strings.settingsPlanSection,
-              subtitle: Strings.settingsPlanSubtitle,
               child: _PlanSelector(viewModel: viewModel),
             ),
 
             _Section(
               title: Strings.settingsTimingsSection,
-              subtitle: Strings.settingsTimingsSubtitle,
               child: Column(
                 children: <Widget>[
                   for (final type in MealType.values)
@@ -184,6 +182,8 @@ class _SettingsViewState extends State<SettingsView> {
               title: Strings.settingsDataSection,
               child: Column(
                 children: <Widget>[
+                  _MenuStatusCard(viewModel: viewModel),
+                  const SizedBox(height: 4),
                   // Downloading is only offered once a menu server exists;
                   // otherwise the button would always fail and teach the
                   // student to distrust it.
@@ -192,12 +192,6 @@ class _SettingsViewState extends State<SettingsView> {
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.refresh_rounded),
                       title: const Text(Strings.settingsForceRefresh),
-                      subtitle: Text(
-                        Strings.lastUpdated(
-                          viewModel.lastUpdated,
-                          DateTime.now(),
-                        ),
-                      ),
                       trailing: viewModel.isRefreshing
                           ? const SizedBox(
                               width: 18,
@@ -211,13 +205,7 @@ class _SettingsViewState extends State<SettingsView> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.file_open_outlined),
                     title: const Text(Strings.settingsImport),
-                    subtitle: Text(
-                      viewModel.canRefreshFromServer
-                          ? Strings.settingsImportSubtitle
-                          : '${Strings.settingsImportSubtitle}\n'
-                                '${Strings.lastUpdated(viewModel.lastUpdated, DateTime.now())}',
-                    ),
-                    isThreeLine: !viewModel.canRefreshFromServer,
+                    subtitle: const Text(Strings.settingsImportSubtitle),
                     trailing: viewModel.isImporting
                         ? const SizedBox(
                             width: 18,
@@ -233,22 +221,9 @@ class _SettingsViewState extends State<SettingsView> {
 
             _Section(
               title: Strings.settingsAppearanceSection,
-              subtitle: Strings.settingsAppearanceSubtitle,
               child: _ThemeSelector(
                 selected: viewModel.themeMode,
                 onSelected: viewModel.setThemeMode,
-              ),
-            ),
-
-            _Section(
-              title: Strings.settingsPrivacySection,
-              child: SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                value: viewModel.settings.analyticsEnabled,
-                onChanged: viewModel.setAnalyticsEnabled,
-                title: const Text(Strings.settingsAnalytics),
-                subtitle: const Text(Strings.settingsAnalyticsSubtitle),
-                isThreeLine: true,
               ),
             ),
 
@@ -281,12 +256,91 @@ class _SettingsViewState extends State<SettingsView> {
   );
 }
 
+/// Whether a menu is loaded, and what it covers.
+///
+/// This replaces the provenance line that used to sit at the bottom of the
+/// home screen: the answer belongs next to the import button that changes it,
+/// not under the menu a student is trying to read.
+class _MenuStatusCard extends StatelessWidget {
+  const _MenuStatusCard({required this.viewModel});
+
+  final SettingsViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.mess;
+    final textTheme = Theme.of(context).textTheme;
+    final loaded = viewModel.hasMenu;
+
+    // Green reads as "you are set up"; the muted state is a prompt, not an
+    // error, so it stays quiet rather than alarming.
+    final accent = loaded ? colors.veg : colors.textMuted;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppTheme.chipRadius),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+            child: Icon(
+              loaded ? Icons.check_rounded : Icons.file_upload_outlined,
+              size: 18,
+              color: colors.canvas,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  loaded
+                      ? Strings.settingsMenuLoaded
+                      : Strings.settingsMenuMissing,
+                  style: textTheme.titleMedium?.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  loaded
+                      ? Strings.menuCoverage(
+                          month: viewModel.menuMonth,
+                          days: viewModel.menuDayCount,
+                          tiers: viewModel.menuTierCount,
+                        )
+                      : Strings.settingsMenuMissingBody,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// A titled group of settings rows.
 class _Section extends StatelessWidget {
   const _Section({required this.title, required this.child, this.subtitle});
 
   final String title;
+
+  /// Optional explanatory line under the heading. Used sparingly — only where
+  /// the section's behaviour is not obvious from its controls.
   final String? subtitle;
+
   final Widget child;
 
   @override

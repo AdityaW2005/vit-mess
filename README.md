@@ -1,4 +1,4 @@
-# MessMate
+# MessUp
 
 The VIT-AP hostel mess menu, answered in under two seconds.
 

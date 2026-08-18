@@ -6,7 +6,7 @@ class AppConfig {
   const AppConfig._();
 
   /// Display name of the app.
-  static const String appName = 'MessMate';
+  static const String appName = 'MessUp';
 
   /// Campus this build targets. Used to sanity-check a downloaded document.
   static const String campus = 'VIT-AP';
