@@ -20,6 +20,7 @@ class NowServingCard extends StatelessWidget {
     required this.remaining,
     required this.now,
     super.key,
+    this.pairAlternatives = true,
   });
 
   /// The meal to lead with: serving now, or the next to open.
@@ -30,6 +31,9 @@ class NowServingCard extends StatelessWidget {
 
   /// The instant the ViewModel last observed.
   final DateTime now;
+
+  /// Whether adjacent veg/non-veg entries read as one either/or choice.
+  final bool pairAlternatives;
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +122,11 @@ class NowServingCard extends StatelessWidget {
           const SizedBox(height: 8),
 
           // The full item list, so the answer needs no further taps.
-          MealItemsList(items: focus.meal.items, onAccent: serving),
+          MealItemsList(
+            items: focus.meal.items,
+            onAccent: serving,
+            pairAlternatives: pairAlternatives,
+          ),
         ],
       ),
     );

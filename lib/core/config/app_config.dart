@@ -14,9 +14,20 @@ class AppConfig {
   /// The single source of truth for the remote menu document.
   ///
   /// Point this at the raw URL of `menu.json` in the menu-data repository.
-  /// See README.md ("Updating the monthly menu") for the publishing flow.
-  static const String menuUrl =
+  /// See README.md ("Getting a menu into the app") for the publishing flow.
+  ///
+  /// While it still equals [placeholderMenuUrl] the app treats downloading as
+  /// unavailable and does not attempt doomed requests — importing the
+  /// spreadsheet is then the only way a menu arrives.
+  static const String menuUrl = placeholderMenuUrl;
+
+  /// The stand-in shipped with the source. Replace [menuUrl] to go live.
+  static const String placeholderMenuUrl =
       'https://raw.githubusercontent.com/vitap-messmate/menu-data/main/menu.json';
+
+  /// True once [menuUrl] points at a real published document.
+  static bool get isRemoteConfigured =>
+      menuUrl.trim().isNotEmpty && menuUrl != placeholderMenuUrl;
 
   /// File extensions accepted by the manual import flow.
   ///

@@ -202,6 +202,10 @@ class _DayPage extends StatelessWidget {
                     ),
                     presentation: presentation,
                     initiallyExpanded: presentation.status.isServing,
+                    pairAlternatives: viewModel.pairsAlternatives,
+                    onExpansionChanged: (expanded) {
+                      if (expanded) viewModel.logMealExpanded(presentation);
+                    },
                   ),
                 ),
             ],

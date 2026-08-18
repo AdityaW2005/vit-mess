@@ -33,7 +33,9 @@ class _OnboardingViewState extends State<OnboardingView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<SettingsViewModel>().initialize();
+      if (!mounted) return;
+      final viewModel = context.read<SettingsViewModel>()..onOnboardingShown();
+      viewModel.initialize();
     });
   }
 

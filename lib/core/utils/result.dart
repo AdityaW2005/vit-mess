@@ -19,6 +19,10 @@ enum FailureKind {
   /// Nothing cached and nothing bundled.
   empty,
 
+  /// The action cannot run in this build — e.g. downloading when no menu
+  /// server is configured. Not an error the student caused.
+  unsupported,
+
   /// Anything not covered above.
   unknown,
 }

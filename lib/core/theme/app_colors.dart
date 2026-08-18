@@ -76,11 +76,18 @@ class AppColors {
   /// A brighter green that keeps contrast on the dark canvas.
   static const Color vegGreenDark = Color(0xFF4CC77E);
 
-  /// The brown-red of the standard non-vegetarian mark.
-  static const Color nonVegBrown = Color(0xFF9A3412);
+  /// The red of the non-vegetarian mark.
+  static const Color nonVegRed = Color(0xFFC62828);
 
   /// A lifted non-veg mark for the dark canvas.
-  static const Color nonVegBrownDark = Color(0xFFC2653C);
+  static const Color nonVegRedDark = Color(0xFFFF6B5C);
+
+  /// Veg mark drawn on the saffron now-serving card, where the usual greens
+  /// wash out.
+  static const Color vegOnAccent = Color(0xFF14532D);
+
+  /// Non-veg mark drawn on the saffron now-serving card.
+  static const Color nonVegOnAccent = Color(0xFF7F1D1D);
 
   // --------------------------------------------------------------- status
   /// Error and destructive affordances.

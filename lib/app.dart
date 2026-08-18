@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'core/constants/strings.dart';
 import 'core/service_locator.dart';
+import 'repositories/analytics_repository.dart';
 import 'core/theme/app_theme.dart';
 import 'models/app_settings.dart';
 import 'viewmodels/home_view_model.dart';
@@ -62,6 +63,11 @@ class MessMateApp extends StatelessWidget {
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: _themeModeFor(settings.themeMode),
+        // Routes push rarely here — the tabs report themselves — but this
+        // catches anything pushed on top. Absent when analytics is off.
+        navigatorObservers: <NavigatorObserver>[
+          ?locator<AnalyticsRepository>().navigatorObserver,
+        ],
         initialRoute: AppRoutes.root,
         routes: <String, WidgetBuilder>{
           AppRoutes.root: (context) => const _RootGate(),

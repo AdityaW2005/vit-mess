@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../core/config/app_config.dart';
+import '../core/constants/analytics_events.dart';
 import '../core/constants/strings.dart';
 import '../core/utils/date_utils.dart';
 import '../core/utils/result.dart';
@@ -7,6 +9,7 @@ import '../models/app_settings.dart';
 import '../models/menu.dart';
 import '../models/menu_day.dart';
 import '../models/mess.dart';
+import '../repositories/analytics_repository.dart';
 import '../repositories/menu_repository.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/settings_repository.dart';
@@ -23,14 +26,17 @@ class HomeViewModel extends BaseViewModel {
     required MenuRepository menuRepository,
     required SettingsRepository settingsRepository,
     required ReminderRepository reminderRepository,
+    required AnalyticsRepository analyticsRepository,
   }) : _menuRepository = menuRepository,
        _settingsRepository = settingsRepository,
        _reminderRepository = reminderRepository,
+       _analytics = analyticsRepository,
        _settings = settingsRepository.current;
 
   final MenuRepository _menuRepository;
   final SettingsRepository _settingsRepository;
   final ReminderRepository _reminderRepository;
+  final AnalyticsRepository _analytics;
 
   Timer? _ticker;
   StreamSubscription<AppSettings>? _settingsSubscription;
@@ -103,6 +109,12 @@ class HomeViewModel extends BaseViewModel {
   bool get showMonthUnavailable =>
       _snapshot != null && !_isRefreshing && (_focus == null || isMonthStale);
 
+  /// Whether veg/non-veg alternatives read as one either/or choice.
+  ///
+  /// The Veg & Non-Veg plan serves one of the pair; the Special plan serves
+  /// both, so there they are listed as separate dishes.
+  bool get pairsAlternatives => _mess?.id != AppConfig.messIdSpecial;
+
   /// True when the day exists but carries no meals at all.
   bool get hasEmptyDay =>
       _snapshot != null && _today != null && _today!.meals.isEmpty;
@@ -144,12 +156,28 @@ class HomeViewModel extends BaseViewModel {
     unawaited(refresh());
   }
 
+/// Called when this tab comes to the front.
+  ///
+  /// Tabs live in an `IndexedStack`, so they are built once and never pushed
+  /// as routes — the navigator observer cannot see them and the screen has to
+  /// report itself.
+  void onShown() => unawaited(_analytics.logScreen(AnalyticsScreens.home));
+
+  /// Records that a meal card was opened.
+  void logMealExpanded(MealPresentation presentation) => unawaited(
+    _analytics.logMealExpanded(
+      type: presentation.meal.type,
+      status: presentation.status,
+    ),
+  );
+
   /// Fetches the latest document.
   ///
   /// A failure is swallowed when a menu is already on screen — an offline
   /// student should see their cached menu, not a banner. The full error state
   /// appears only when there is genuinely nothing to show.
-  Future<void> refresh() async {
+  Future<void> refresh({bool userInitiated = false}) async {
+    if (userInitiated) unawaited(_analytics.logPullToRefresh());
     if (_isRefreshing) return;
     _isRefreshing = true;
     safeNotify();
@@ -166,11 +194,13 @@ class HomeViewModel extends BaseViewModel {
       },
       onFailure: (failure) {
         if (_snapshot != null) {
-          // A cached menu is already on screen: keep it and note the failure
-          // quietly, so an offline student never sees an error banner.
-          _refreshFailedQuietly = true;
+          // A cached menu is already on screen: keep it. Only a genuine
+          // network failure is worth the quiet "last updated" marker — a build
+          // with no menu server simply has nothing to download.
+          _refreshFailedQuietly = failure.kind == FailureKind.network;
           safeNotify();
-        } else if (failure.kind == FailureKind.network) {
+        } else if (failure.kind == FailureKind.network ||
+            failure.kind == FailureKind.unsupported) {
           // Nothing on the device at all. The useful screen is the import
           // prompt, not an offline notice — the remote document is optional,
           // and the prompt still offers downloading as its secondary action.

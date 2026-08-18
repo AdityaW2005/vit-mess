@@ -27,6 +27,8 @@ class MessColors extends ThemeExtension<MessColors> {
     required this.closedText,
     required this.veg,
     required this.nonVeg,
+    required this.vegOnAccent,
+    required this.nonVegOnAccent,
     required this.danger,
     required this.shimmerBase,
     required this.shimmerHighlight,
@@ -49,7 +51,9 @@ class MessColors extends ThemeExtension<MessColors> {
     closedSurface: Color(0xFF1B1511),
     closedText: AppColors.darkTextMuted,
     veg: AppColors.vegGreenDark,
-    nonVeg: AppColors.nonVegBrownDark,
+    nonVeg: AppColors.nonVegRedDark,
+    vegOnAccent: AppColors.vegOnAccent,
+    nonVegOnAccent: AppColors.nonVegOnAccent,
     danger: AppColors.danger,
     shimmerBase: AppColors.darkShimmerBase,
     shimmerHighlight: AppColors.darkShimmerHighlight,
@@ -72,7 +76,9 @@ class MessColors extends ThemeExtension<MessColors> {
     closedSurface: Color(0xFFF4ECE3),
     closedText: AppColors.lightTextMuted,
     veg: AppColors.vegGreen,
-    nonVeg: AppColors.nonVegBrown,
+    nonVeg: AppColors.nonVegRed,
+    vegOnAccent: AppColors.vegOnAccent,
+    nonVegOnAccent: AppColors.nonVegOnAccent,
     danger: AppColors.danger,
     shimmerBase: AppColors.lightShimmerBase,
     shimmerHighlight: AppColors.lightShimmerHighlight,
@@ -126,6 +132,12 @@ class MessColors extends ThemeExtension<MessColors> {
   /// Non-vegetarian marker.
   final Color nonVeg;
 
+  /// Vegetarian marker drawn on the saffron now-serving card.
+  final Color vegOnAccent;
+
+  /// Non-vegetarian marker drawn on the saffron now-serving card.
+  final Color nonVegOnAccent;
+
   /// Error affordances.
   final Color danger;
 
@@ -153,6 +165,8 @@ class MessColors extends ThemeExtension<MessColors> {
     Color? closedText,
     Color? veg,
     Color? nonVeg,
+    Color? vegOnAccent,
+    Color? nonVegOnAccent,
     Color? danger,
     Color? shimmerBase,
     Color? shimmerHighlight,
@@ -173,6 +187,8 @@ class MessColors extends ThemeExtension<MessColors> {
     closedText: closedText ?? this.closedText,
     veg: veg ?? this.veg,
     nonVeg: nonVeg ?? this.nonVeg,
+    vegOnAccent: vegOnAccent ?? this.vegOnAccent,
+    nonVegOnAccent: nonVegOnAccent ?? this.nonVegOnAccent,
     danger: danger ?? this.danger,
     shimmerBase: shimmerBase ?? this.shimmerBase,
     shimmerHighlight: shimmerHighlight ?? this.shimmerHighlight,
@@ -202,6 +218,8 @@ class MessColors extends ThemeExtension<MessColors> {
       closedText: Color.lerp(closedText, other.closedText, t)!,
       veg: Color.lerp(veg, other.veg, t)!,
       nonVeg: Color.lerp(nonVeg, other.nonVeg, t)!,
+      vegOnAccent: Color.lerp(vegOnAccent, other.vegOnAccent, t)!,
+      nonVegOnAccent: Color.lerp(nonVegOnAccent, other.nonVegOnAccent, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       shimmerBase: Color.lerp(shimmerBase, other.shimmerBase, t)!,
       shimmerHighlight: Color.lerp(

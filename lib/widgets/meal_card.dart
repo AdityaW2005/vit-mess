@@ -10,10 +10,11 @@ import 'variant_pair_tile.dart';
 
 /// Renders a meal's dishes in menu order.
 ///
-/// Consecutive veg/non-veg entries are folded into a single
-/// [VariantPairTile], so a paired alternative reads as one choice rather than
-/// two separate dishes. Order is preserved: pairs stay where the mess printed
-/// them.
+/// On the Veg & Non-Veg plan, consecutive veg/non-veg entries are folded into
+/// a single [VariantPairTile]: the mess serves one *or* the other, so showing
+/// them as two dishes would overstate the meal. The Special plan serves both,
+/// so there [pairAlternatives] is false and each dish stands on its own row.
+/// Order is preserved either way.
 class MealItemsList extends StatelessWidget {
   /// Creates a list for [items].
   const MealItemsList({
@@ -22,10 +23,14 @@ class MealItemsList extends StatelessWidget {
     this.dimmed = false,
     this.onAccent = false,
     this.animate = true,
+    this.pairAlternatives = true,
   });
 
   /// The dishes, in menu order.
   final List<MealItem> items;
+
+  /// Whether adjacent veg/non-veg entries read as one either/or choice.
+  final bool pairAlternatives;
 
   /// Desaturates every row, used for meals that have closed.
   final bool dimmed;
@@ -45,7 +50,7 @@ class MealItemsList extends StatelessWidget {
       final current = items[i];
       final next = (i + 1 < items.length) ? items[i + 1] : null;
 
-      if (current.isPaired && next != null && next.isPaired) {
+      if (pairAlternatives && current.isPaired && next != null && next.isPaired) {
         rows.add(
           VariantPairTile(
             items: <MealItem>[current, next],
@@ -83,6 +88,8 @@ class MealCard extends StatefulWidget {
     required this.presentation,
     super.key,
     this.initiallyExpanded = false,
+    this.pairAlternatives = true,
+    this.onExpansionChanged,
   });
 
   /// The meal and the state to draw it in.
@@ -91,6 +98,12 @@ class MealCard extends StatefulWidget {
   /// Whether the card starts open.
   final bool initiallyExpanded;
 
+  /// Whether adjacent veg/non-veg entries read as one either/or choice.
+  final bool pairAlternatives;
+
+  /// Called with the new state whenever the card is opened or closed.
+  final ValueChanged<bool>? onExpansionChanged;
+
   @override
   State<MealCard> createState() => _MealCardState();
 }
@@ -98,7 +111,10 @@ class MealCard extends StatefulWidget {
 class _MealCardState extends State<MealCard> {
   late bool _expanded = widget.initiallyExpanded;
 
-  void _toggle() => setState(() => _expanded = !_expanded);
+  void _toggle() {
+    setState(() => _expanded = !_expanded);
+    widget.onExpansionChanged?.call(_expanded);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -190,6 +206,7 @@ class _MealCardState extends State<MealCard> {
                           child: MealItemsList(
                             items: meal.items,
                             dimmed: isClosed,
+                            pairAlternatives: widget.pairAlternatives,
                           ),
                         )
                       : const SizedBox(width: double.infinity),

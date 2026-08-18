@@ -56,16 +56,36 @@ void main() {
       final menu = parser.parse(
         buildWorkbook(<String, List<List<String>>>{'Sheet1': gridSheet()}),
       );
-      final day = menu.messes.single.dayFor(DateTime(2026, 8, 17))!;
+      // 18 August 2026 is a Tuesday, so breakfast runs to the weekday clock.
+      final day = menu.messes.single.dayFor(DateTime(2026, 8, 18))!;
 
-      expect(day.mealFor(MealType.breakfast)!.startTime, const MinuteOfDay(7, 15));
+      expect(day.mealFor(MealType.breakfast)!.startTime, const MinuteOfDay(7, 0));
       expect(day.mealFor(MealType.breakfast)!.endTime, const MinuteOfDay(9, 0));
       expect(day.mealFor(MealType.lunch)!.startTime, const MinuteOfDay(12, 30));
       expect(day.mealFor(MealType.lunch)!.endTime, const MinuteOfDay(14, 15));
-      expect(day.mealFor(MealType.snacks)!.startTime, const MinuteOfDay(16, 45));
+      expect(day.mealFor(MealType.snacks)!.startTime, const MinuteOfDay(16, 30));
       expect(day.mealFor(MealType.snacks)!.endTime, const MinuteOfDay(18, 15));
       expect(day.mealFor(MealType.dinner)!.startTime, const MinuteOfDay(19, 15));
       expect(day.mealFor(MealType.dinner)!.endTime, const MinuteOfDay(21, 0));
+    });
+
+    test('breakfast starts 15 minutes later on Sunday and Monday', () {
+      final menu = parser.parse(
+        buildWorkbook(<String, List<List<String>>>{'Sheet1': gridSheet()}),
+      );
+      // 17 August 2026 is a Monday.
+      final monday = menu.messes.single.dayFor(DateTime(2026, 8, 17))!;
+
+      expect(
+        monday.mealFor(MealType.breakfast)!.startTime,
+        const MinuteOfDay(7, 15),
+      );
+      expect(
+        monday.mealFor(MealType.breakfast)!.endTime,
+        const MinuteOfDay(9, 15),
+      );
+      // Only breakfast shifts; the rest of the day is unchanged.
+      expect(monday.mealFor(MealType.lunch)!.startTime, const MinuteOfDay(12, 30));
     });
 
     test('accepts newline separated cells and dd/MM/yyyy dates', () {
@@ -128,6 +148,87 @@ void main() {
           .dayFor(DateTime(2026, 8, 17))!
           .mealFor(MealType.lunch)!;
       expect(lunch.items.map((item) => item.name), <String>['Rice', 'Sambar']);
+    });
+  });
+
+  group('rotation layout', () {
+    // The month has no year in the title; 1, 15 and 29 August fall on a
+    // Saturday only in 2026, which is how the year is recovered.
+    Menu parseRotation() => parser.parse(
+      buildWorkbook(<String, List<List<String>>>{
+        'Veg & Non-Veg': rotationSheet(),
+      }),
+      now: DateTime(2026, 8, 18),
+    );
+
+    test('expands a day block onto every date it names', () {
+      final mess = parseRotation().messes.single;
+
+      // Sat 1/15/29, Sun 2/16/30, Mon 3/17/31 — nine dates from three blocks.
+      expect(mess.days, hasLength(9));
+      expect(
+        mess.days.map((day) => day.date.day),
+        containsAll(<int>[1, 15, 29, 2, 16, 30, 3, 17, 31]),
+      );
+    });
+
+    test('repeats identical dishes across a block, from a merged day cell', () {
+      final mess = parseRotation().messes.single;
+      final first = mess.dayFor(DateTime(2026, 8, 1))!;
+      final repeat = mess.dayFor(DateTime(2026, 8, 29))!;
+
+      expect(
+        first.mealFor(MealType.breakfast)!.items.map((item) => item.name),
+        <String>['Masala Ghee Roast Dosa', 'Vada Pav', 'Tea/Coffee/Milk'],
+      );
+      expect(
+        repeat.mealFor(MealType.breakfast)!.items,
+        first.mealFor(MealType.breakfast)!.items,
+      );
+    });
+
+    test('recovers the year from the weekday labels', () {
+      final menu = parseRotation();
+      expect(menu.month, '2026-08');
+      expect(menu.messes.single.dayFor(DateTime(2026, 8, 1))!.weekday, 'Sat');
+    });
+
+    test('keeps the service instructions out of the menu', () {
+      final mess = parseRotation().messes.single;
+      for (final day in mess.days) {
+        for (final meal in day.meals) {
+          for (final item in meal.items) {
+            expect(item.name.toLowerCase(), isNot(contains('instruction')));
+            expect(item.name.toLowerCase(), isNot(contains('thick curd must')));
+          }
+        }
+      }
+    });
+
+    test('pairs inline (Non-Veg)/(Veg) markers on adjacent rows', () {
+      final dinner = parseRotation()
+          .messes
+          .single
+          .dayFor(DateTime(2026, 8, 3))!
+          .mealFor(MealType.dinner)!;
+
+      final names = dinner.items.map((item) => item.name).toList();
+      expect(names, contains('Telangana Chicken Curry'));
+      expect(names, contains('Achari Paneer'));
+      expect(dinner.variantPairs, hasLength(1));
+    });
+
+    test('leaves a slash choice as a single dish', () {
+      final lunch = parseRotation()
+          .messes
+          .single
+          .dayFor(DateTime(2026, 8, 2))!
+          .mealFor(MealType.lunch)!;
+
+      expect(
+        lunch.items.map((item) => item.name),
+        contains('Chicken Dum Biryani/Vegetable Dum Biryani'),
+      );
     });
   });
 

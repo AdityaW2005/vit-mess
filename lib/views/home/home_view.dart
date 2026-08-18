@@ -87,7 +87,7 @@ class _HomeContent extends StatelessWidget {
     final focus = viewModel.focus;
 
     return RefreshIndicator(
-      onRefresh: viewModel.refresh,
+      onRefresh: () => viewModel.refresh(userInitiated: true),
       color: context.mess.accent,
       backgroundColor: context.mess.surface,
       child: ListView(
@@ -117,6 +117,7 @@ class _HomeContent extends StatelessWidget {
               focus: focus,
               remaining: viewModel.countdown,
               now: viewModel.now,
+              pairAlternatives: viewModel.pairsAlternatives,
             ),
             if (viewModel.otherMeals.isNotEmpty) ...<Widget>[
               const SizedBox(height: 30),
@@ -139,6 +140,10 @@ class _HomeContent extends StatelessWidget {
                           '${presentation.meal.type.jsonValue}',
                         ),
                         presentation: presentation,
+                        pairAlternatives: viewModel.pairsAlternatives,
+                        onExpansionChanged: (expanded) {
+                          if (expanded) viewModel.logMealExpanded(presentation);
+                        },
                       ),
                     ),
                 ],

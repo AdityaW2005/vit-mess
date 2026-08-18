@@ -44,6 +44,7 @@ class AppSettings {
     required Set<MealType> reminderMeals,
     required this.timings,
     this.themeMode = AppThemeMode.system,
+    this.analyticsEnabled = true,
   }) : reminderMeals = Set<MealType>.unmodifiable(reminderMeals);
 
   /// The state a fresh install starts in: onboarding pending, reminders off.
@@ -73,6 +74,12 @@ class AppSettings {
   /// Light, dark, or follow the device.
   final AppThemeMode themeMode;
 
+  /// Whether anonymous usage analytics may be collected.
+  ///
+  /// Defaults to on, and is switchable in Settings → Privacy. Turning it off
+  /// stops collection at the SDK level, not merely at the call site.
+  final bool analyticsEnabled;
+
   /// True when a reminder should be scheduled for [type].
   bool remindsFor(MealType type) =>
       remindersEnabled && reminderMeals.contains(type);
@@ -85,6 +92,7 @@ class AppSettings {
     Set<MealType>? reminderMeals,
     MealTimings? timings,
     AppThemeMode? themeMode,
+    bool? analyticsEnabled,
   }) => AppSettings(
     messId: messId ?? this.messId,
     onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
@@ -92,6 +100,7 @@ class AppSettings {
     reminderMeals: reminderMeals ?? this.reminderMeals,
     timings: timings ?? this.timings,
     themeMode: themeMode ?? this.themeMode,
+    analyticsEnabled: analyticsEnabled ?? this.analyticsEnabled,
   );
 
   /// Returns a copy with the reminder for [type] switched on or off.
@@ -132,6 +141,8 @@ class AppSettings {
       reminderMeals: meals.isEmpty ? fallback.reminderMeals : meals,
       timings: MealTimings.fromJson(json['timings']),
       themeMode: AppThemeMode.fromStorage(json['themeMode']),
+      // Absent means a build from before the toggle existed; default to on.
+      analyticsEnabled: json['analyticsEnabled'] != false,
     );
   }
 
@@ -145,6 +156,7 @@ class AppSettings {
         .toList(growable: false),
     'timings': timings.toJson(),
     'themeMode': themeMode.storageValue,
+    'analyticsEnabled': analyticsEnabled,
   };
 
   @override
@@ -156,7 +168,8 @@ class AppSettings {
           remindersEnabled == other.remindersEnabled &&
           setEquals(reminderMeals, other.reminderMeals) &&
           timings == other.timings &&
-          themeMode == other.themeMode);
+          themeMode == other.themeMode &&
+          analyticsEnabled == other.analyticsEnabled);
 
   @override
   int get hashCode => Object.hash(
@@ -166,6 +179,7 @@ class AppSettings {
     Object.hashAllUnordered(reminderMeals),
     timings,
     themeMode,
+    analyticsEnabled,
   );
 
   @override

@@ -52,6 +52,53 @@ List<List<String>> gridSheet() => <List<String>>[
   ],
 ];
 
+/// A rotation sheet in the shape the VIT-AP mess office publishes: a title
+/// row, a `Day` column whose first cell carries the weekday plus the dates
+/// that repeat it (the remaining rows are blank, exactly as a merged cell
+/// reads), and a block of service instructions after the last day.
+List<List<String>> rotationSheet() => <List<String>>[
+  <String>['VEG & NON-VEG MESS MENU FOR THE MONTH OF AUGUST'],
+  <String>['Day', 'Breakfast', 'Lunch', 'Snacks', 'Dinner'],
+  <String>[
+    'Sat\n1, 15, 29',
+    'Masala Ghee Roast Dosa',
+    'Carrot & Cucumber Salad',
+    'Punugulu 10 Pcs Std Size',
+    'Beetroot & Carrot Salad',
+  ],
+  <String>['', 'Vada Pav', 'White Rice', 'Ginger Tea/Coffee/Milk', 'Mango Dal'],
+  <String>['', 'Tea/Coffee/Milk', 'Mudda Pappu', '', 'Thick Curd'],
+  <String>[],
+  <String>[
+    'Sun\n2, 16, 30',
+    'Shavige Bath',
+    'Chicken Dum Biryani/Vegetable Dum Biryani',
+    'Dahi Puri (8 Pcs)',
+    'Ragi Idly',
+  ],
+  <String>['', 'Coconut Chutney', 'Onion Raitha', 'Onions', 'Dondakaya Fry'],
+  <String>[],
+  <String>[
+    'Mon\n3, 17, 31',
+    'Carrot Idly',
+    'Chapathi',
+    'Dry Maggi',
+    'Onions & Lemon Salad',
+  ],
+  <String>[
+    '',
+    'Chole Curry',
+    'Palak Dal',
+    'Tomato Sauce',
+    'Telangana Chicken Curry (Non-Veg)',
+  ],
+  <String>['', 'Tea/Coffee/Milk', 'Tomato Rice', '', 'Achari Paneer (Veg)'],
+  <String>[],
+  <String>[],
+  <String>['', 'MESS SERVICE INSTRUCTIONS'],
+  <String>['', '1. Thick curd must be served as per the menu.'],
+];
+
 /// A long-layout sheet: one row per dish.
 List<List<String>> longSheet() => <List<String>>[
   <String>['Date', 'Meal', 'Item', 'Variant'],

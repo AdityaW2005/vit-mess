@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/strings.dart';
+import '../../viewmodels/home_view_model.dart';
+import '../../viewmodels/search_view_model.dart';
+import '../../viewmodels/settings_view_model.dart';
+import '../../viewmodels/week_view_model.dart';
 import '../home/home_view.dart';
 import '../search/search_view.dart';
 import '../settings/settings_view.dart';
@@ -21,6 +26,34 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _reportScreen(_index);
+    });
+  }
+
+  void _onDestinationSelected(int index) {
+    setState(() => _index = index);
+    _reportScreen(index);
+  }
+
+  /// Each tab reports itself through its own ViewModel, so the view never
+  /// touches the analytics layer directly.
+  void _reportScreen(int index) {
+    switch (index) {
+      case 0:
+        context.read<HomeViewModel>().onShown();
+      case 1:
+        context.read<WeekViewModel>().onShown();
+      case 2:
+        context.read<SearchViewModel>().onShown();
+      case 3:
+        context.read<SettingsViewModel>().onShown();
+    }
+  }
+
   static const List<Widget> _tabs = <Widget>[
     HomeView(),
     WeekView(),
@@ -33,7 +66,7 @@ class _MainShellState extends State<MainShell> {
     body: IndexedStack(index: _index, children: _tabs),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _index,
-      onDestinationSelected: (index) => setState(() => _index = index),
+      onDestinationSelected: _onDestinationSelected,
       destinations: const <NavigationDestination>[
         NavigationDestination(
           icon: Icon(Icons.local_dining_outlined),

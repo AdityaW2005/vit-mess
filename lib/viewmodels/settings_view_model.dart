@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/config/app_config.dart';
+import '../core/constants/analytics_events.dart';
 import '../core/config/meal_timings.dart';
 import '../core/utils/result.dart';
 import '../models/app_settings.dart';
 import '../models/meal.dart';
 import '../models/menu.dart';
+import '../repositories/analytics_repository.dart';
 import '../repositories/menu_repository.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/settings_repository.dart';
@@ -46,14 +49,17 @@ class SettingsViewModel extends BaseViewModel {
     required MenuRepository menuRepository,
     required SettingsRepository settingsRepository,
     required ReminderRepository reminderRepository,
+    required AnalyticsRepository analyticsRepository,
   }) : _menuRepository = menuRepository,
        _settingsRepository = settingsRepository,
        _reminderRepository = reminderRepository,
+       _analytics = analyticsRepository,
        _settings = settingsRepository.current;
 
   final MenuRepository _menuRepository;
   final SettingsRepository _settingsRepository;
   final ReminderRepository _reminderRepository;
+  final AnalyticsRepository _analytics;
 
   StreamSubscription<AppSettings>? _settingsSubscription;
   StreamSubscription<MenuSnapshot>? _menuSubscription;
@@ -81,6 +87,9 @@ class SettingsViewModel extends BaseViewModel {
 
   /// True while a forced refresh is in flight.
   bool get isRefreshing => _isRefreshing;
+
+  /// True when a menu server is published, so downloading is worth offering.
+  bool get canRefreshFromServer => AppConfig.isRemoteConfigured;
 
   /// True while the file picker flow is running.
   bool get isImporting => _isImporting;
@@ -158,9 +167,21 @@ class SettingsViewModel extends BaseViewModel {
     );
   }
 
+/// Called when this tab comes to the front.
+  ///
+  /// Tabs live in an `IndexedStack`, so they are built once and never pushed
+  /// as routes — the navigator observer cannot see them and the screen has to
+  /// report itself.
+  void onShown() => unawaited(_analytics.logScreen(AnalyticsScreens.settings));
+
+  /// Called when the first-run tier picker appears.
+  void onOnboardingShown() =>
+      unawaited(_analytics.logScreen(AnalyticsScreens.onboarding));
+
   /// Switches the subscription tier and reschedules reminders.
   Future<void> selectMess(String messId) async {
     if (messId == _settings.messId) return;
+    unawaited(_analytics.logTierChanged(messId));
     await _persist(_settings.copyWith(messId: messId));
   }
 
@@ -168,12 +189,24 @@ class SettingsViewModel extends BaseViewModel {
   /// setting.
   Future<void> setThemeMode(AppThemeMode mode) async {
     if (mode == _settings.themeMode) return;
+    unawaited(_analytics.logThemeChanged(mode));
     await _persist(_settings.copyWith(themeMode: mode));
+  }
+
+  /// Turns anonymous usage analytics on or off.
+  ///
+  /// The choice is applied at the SDK level, so opting out stops data leaving
+  /// the device rather than merely being dropped here.
+  Future<void> setAnalyticsEnabled(bool enabled) async {
+    if (enabled == _settings.analyticsEnabled) return;
+    await _analytics.setConsent(enabled: enabled);
+    await _persist(_settings.copyWith(analyticsEnabled: enabled));
   }
 
   /// Overrides the serving window for [type].
   Future<void> setMealWindow(MealType type, MealWindow window) async {
     if (!window.isValid) return;
+    unawaited(_analytics.logMealTimingChanged(type: type, isReset: false));
     await _persist(
       _settings.copyWith(timings: _settings.timings.withWindow(type, window)),
     );
@@ -182,6 +215,7 @@ class SettingsViewModel extends BaseViewModel {
   /// Drops the override for [type], restoring the published window.
   Future<void> clearMealWindow(MealType type) async {
     if (!_settings.timings.isOverridden(type)) return;
+    unawaited(_analytics.logMealTimingChanged(type: type, isReset: true));
     await _persist(
       _settings.copyWith(timings: _settings.timings.withoutOverride(type)),
     );
@@ -201,6 +235,7 @@ class SettingsViewModel extends BaseViewModel {
   Future<bool> setRemindersEnabled(bool enabled) async {
     if (!enabled) {
       _notificationsBlocked = false;
+      unawaited(_analytics.logRemindersToggled(enabled: false));
       await _persist(_settings.copyWith(remindersEnabled: false));
       await _reminderRepository.cancelAll();
       return false;
@@ -212,10 +247,12 @@ class SettingsViewModel extends BaseViewModel {
     final allowed = granted.valueOrNull ?? false;
     _notificationsBlocked = !allowed;
     if (!allowed) {
+      unawaited(_analytics.logRemindersBlocked());
       safeNotify();
       return false;
     }
 
+    unawaited(_analytics.logRemindersToggled(enabled: true));
     await _persist(_settings.copyWith(remindersEnabled: true));
     return true;
   }
@@ -240,6 +277,12 @@ class SettingsViewModel extends BaseViewModel {
       _notificationsBlocked = remindersRequested && !remindersEnabled;
     }
 
+    unawaited(
+      _analytics.logOnboardingCompleted(
+        messId: messId,
+        remindersEnabled: remindersEnabled,
+      ),
+    );
     await _persist(
       _settings.copyWith(
         messId: messId,

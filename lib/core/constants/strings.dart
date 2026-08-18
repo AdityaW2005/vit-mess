@@ -102,6 +102,11 @@ class Strings {
   static const String settingsThemeSystem = 'System';
   static const String settingsThemeLight = 'Light';
   static const String settingsThemeDark = 'Dark';
+  static const String settingsPrivacySection = 'Privacy';
+  static const String settingsAnalytics = 'Share anonymous usage data';
+  static const String settingsAnalyticsSubtitle =
+      'Helps show which meals and dishes students actually look for. Never '
+      'includes your name, and can be switched off at any time.';
   static const String settingsAboutSection = 'About';
   static const String settingsSchemaLabel = 'Menu format';
   static const String settingsCampusLabel = 'Campus';
@@ -156,6 +161,9 @@ class Strings {
       'column per meal, or one row per dish.';
   static const String failureStorage =
       'Could not save to this device. Free up some space and try again.';
+  static const String failureNoRemote =
+      'No menu server is set up yet, so there is nothing to download. Import '
+      'the spreadsheet instead.';
   static const String failureEmpty =
       'No menu is available yet. Import the spreadsheet to get started.';
   static const String failureCancelled = 'Import cancelled.';
@@ -179,6 +187,11 @@ class Strings {
   static const String variantOr = 'or';
 
   // ----------------------------------------------------------- formatters
+
+  /// `Sun & Mon: 7:15 AM – 9:15 AM`, the one slot that runs two clocks.
+  static String lateBreakfastNote() =>
+      'Sun & Mon: '
+      '${formatWindow(MealType.lateBreakfastStart, MealType.lateBreakfastEnd)}';
 
   /// Display name for a theme choice.
   static String themeModeLabel(AppThemeMode mode) => switch (mode) {
@@ -238,6 +251,24 @@ class Strings {
   /// `August 2026` for a month label.
   static String formatMonth(DateTime date) =>
       DateFormat('MMMM y').format(date);
+
+  /// Turns a `yyyy-MM` contract key into `August 2026`.
+  ///
+  /// The stored form is a sortable code; nobody wants to read "2026-08" in the
+  /// UI. Falls back to whatever was stored if it is not a recognisable key.
+  static String formatMonthKey(String? monthKey) {
+    final raw = monthKey?.trim() ?? '';
+    if (raw.isEmpty) return '—';
+
+    final match = RegExp(r'^(\d{4})-(\d{1,2})$').firstMatch(raw);
+    if (match == null) return raw;
+
+    final year = int.parse(match.group(1)!);
+    final month = int.parse(match.group(2)!);
+    if (month < 1 || month > 12) return raw;
+
+    return formatMonth(DateTime(year, month));
+  }
 
   /// How far away a date is, in the words a student would use.
   static String relativeDay(int daysFromToday) {

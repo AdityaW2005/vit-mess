@@ -209,4 +209,45 @@ void main() {
       }
     });
   });
+
+  group('Special plan lists alternatives separately', () {
+    final pairedMeal = mealWith(<MealItem>[
+      const MealItem(name: 'Steamed Rice'),
+      const MealItem(name: 'Masala Onion Omlet', variant: ItemVariant.nonVeg),
+      const MealItem(name: 'Boiled Chick Peas Salad', variant: ItemVariant.veg),
+    ]);
+
+    testWidgets('drops the "or" grouping when pairing is off', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          MealItemsList(
+            items: pairedMeal.items,
+            animate: false,
+            pairAlternatives: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The Special plan serves both, so there is no either/or tile.
+      expect(find.byType(VariantPairTile), findsNothing);
+      expect(find.text('or'), findsNothing);
+
+      // Both dishes still appear, still marked.
+      expect(find.text('Masala Onion Omlet'), findsOneWidget);
+      expect(find.text('Boiled Chick Peas Salad'), findsOneWidget);
+      expect(find.byType(VariantMark), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('still pairs on the Veg & Non-Veg plan', (tester) async {
+      await tester.pumpWidget(
+        wrap(MealItemsList(items: pairedMeal.items, animate: false)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(VariantPairTile), findsOneWidget);
+      expect(find.text('or'), findsOneWidget);
+    });
+  });
 }

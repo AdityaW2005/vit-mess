@@ -84,14 +84,15 @@ class MinuteOfDay implements Comparable<MinuteOfDay> {
 /// Each carries the canonical window from the data contract. `MealTimings`
 /// treats these as its defaults, so the fallback lives in exactly one place.
 enum MealType {
-  /// 07:15 – 09:00.
-  breakfast('breakfast', MinuteOfDay(7, 15), MinuteOfDay(9, 0)),
+  /// 07:00 – 09:00 Tuesday to Saturday. Sunday and Monday run 15 minutes
+  /// later — see [startOn].
+  breakfast('breakfast', MinuteOfDay(7, 0), MinuteOfDay(9, 0)),
 
   /// 12:30 – 14:15.
   lunch('lunch', MinuteOfDay(12, 30), MinuteOfDay(14, 15)),
 
-  /// 16:45 – 18:15.
-  snacks('snacks', MinuteOfDay(16, 45), MinuteOfDay(18, 15)),
+  /// 16:30 – 18:15.
+  snacks('snacks', MinuteOfDay(16, 30), MinuteOfDay(18, 15)),
 
   /// 19:15 – 21:00.
   dinner('dinner', MinuteOfDay(19, 15), MinuteOfDay(21, 0));
@@ -106,6 +107,39 @@ enum MealType {
 
   /// Default closing time before any user override.
   final MinuteOfDay defaultEnd;
+
+  /// The canonical opening time on [date].
+  ///
+  /// Breakfast is the one slot the mess runs on two clocks: 7:00 Tuesday to
+  /// Saturday, and 7:15 on Sunday and Monday. Every other slot keeps the same
+  /// window all week.
+  MinuteOfDay startOn(DateTime date) => _windowOn(date).$1;
+
+  /// The canonical closing time on [date].
+  MinuteOfDay endOn(DateTime date) => _windowOn(date).$2;
+
+  /// True when [date] falls on a day this slot runs to a different clock.
+  bool hasWeekdayException(DateTime date) =>
+      startOn(date) != defaultStart || endOn(date) != defaultEnd;
+
+  /// True when this slot runs to more than one clock across the week.
+  bool get hasWeekdayVariants => this == MealType.breakfast;
+
+  (MinuteOfDay, MinuteOfDay) _windowOn(DateTime date) {
+    if (this == MealType.breakfast && _isLateBreakfastDay(date)) {
+      return (lateBreakfastStart, lateBreakfastEnd);
+    }
+    return (defaultStart, defaultEnd);
+  }
+
+  static bool _isLateBreakfastDay(DateTime date) =>
+      date.weekday == DateTime.sunday || date.weekday == DateTime.monday;
+
+  /// Breakfast opening time on Sunday and Monday.
+  static const MinuteOfDay lateBreakfastStart = MinuteOfDay(7, 15);
+
+  /// Breakfast closing time on Sunday and Monday.
+  static const MinuteOfDay lateBreakfastEnd = MinuteOfDay(9, 15);
 
   /// Parses a contract value, returning `null` when unrecognised.
   static MealType? fromJson(Object? raw) {

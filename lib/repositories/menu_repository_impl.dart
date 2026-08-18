@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/config/app_config.dart';
 import '../core/constants/strings.dart';
 import '../core/utils/result.dart';
 import '../models/menu.dart';
@@ -9,6 +10,7 @@ import '../services/excel_menu_parser.dart';
 import '../services/file_import_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/menu_api_service.dart';
+import 'analytics_repository.dart';
 import 'menu_repository.dart';
 
 /// Remote-first, cache-fallback implementation.
@@ -26,16 +28,29 @@ class MenuRepositoryImpl implements MenuRepository {
     required MenuApiService api,
     required LocalStorageService storage,
     required FileImportService files,
+    required AnalyticsRepository analytics,
     ExcelMenuParser parser = const ExcelMenuParser(),
+    String menuUrl = AppConfig.menuUrl,
   }) : _api = api,
        _storage = storage,
        _files = files,
-       _parser = parser;
+       _analytics = analytics,
+       _parser = parser,
+       _menuUrl = menuUrl;
 
   final MenuApiService _api;
   final LocalStorageService _storage;
   final FileImportService _files;
+  final AnalyticsRepository _analytics;
   final ExcelMenuParser _parser;
+
+  /// Where the JSON document lives. Injected so tests can exercise the network
+  /// path without depending on the shipped placeholder.
+  final String _menuUrl;
+
+  /// True once [_menuUrl] points at a real published document.
+  bool get _hasRemote =>
+      _menuUrl.trim().isNotEmpty && _menuUrl != AppConfig.placeholderMenuUrl;
 
   final StreamController<MenuSnapshot> _changes =
       StreamController<MenuSnapshot>.broadcast();
@@ -53,6 +68,7 @@ class MenuRepositoryImpl implements MenuRepository {
     final fetched = await refreshMenu();
     if (fetched.isSuccess) return fetched;
 
+    unawaited(_analytics.logEmptyPromptShown());
     return const Result<MenuSnapshot>.failure(
       Strings.failureEmpty,
       kind: FailureKind.empty,
@@ -61,11 +77,21 @@ class MenuRepositoryImpl implements MenuRepository {
 
   @override
   Future<Result<MenuSnapshot>> refreshMenu() async {
+    // Without a published menu URL there is nothing to fetch. Saying so beats
+    // a timeout followed by a misleading "you are offline".
+    if (!_hasRemote) {
+      return const Result<MenuSnapshot>.failure(
+        Strings.failureNoRemote,
+        kind: FailureKind.unsupported,
+      );
+    }
+
     String document;
     try {
-      document = await _api.fetchMenuDocument();
+      document = await _api.fetchMenuDocument(url: _menuUrl);
     } on MenuApiException catch (error) {
       debugPrint('Menu refresh failed: $error');
+      unawaited(_analytics.logMenuRefreshFailed(FailureKind.network));
       return Result<MenuSnapshot>.failure(
         Strings.failureNetwork,
         kind: FailureKind.network,
@@ -81,6 +107,7 @@ class MenuRepositoryImpl implements MenuRepository {
       );
     }
 
+    unawaited(_analytics.logMenuRefreshed(menu));
     return _adopt(menu, document, MenuSource.network);
   }
 
@@ -91,6 +118,7 @@ class MenuRepositoryImpl implements MenuRepository {
       workbook = await _files.pickMenuWorkbook();
     } on FileImportException catch (error) {
       debugPrint('Workbook selection failed: $error');
+      unawaited(_analytics.logMenuImportFailed(FailureKind.parse));
       return Result<MenuSnapshot>.failure(
         Strings.failureNotSpreadsheet,
         kind: FailureKind.parse,
@@ -110,6 +138,7 @@ class MenuRepositoryImpl implements MenuRepository {
       menu = _parser.parse(workbook.bytes);
     } on ExcelParseException catch (error) {
       debugPrint('Workbook parse failed: $error');
+      unawaited(_analytics.logMenuImportFailed(FailureKind.parse));
       return Result<MenuSnapshot>.failure(
         Strings.failureSpreadsheetShape,
         kind: FailureKind.parse,
@@ -126,6 +155,7 @@ class MenuRepositoryImpl implements MenuRepository {
 
     // The workbook is normalised to the JSON contract before caching, so the
     // cache format never depends on where a menu came from.
+    unawaited(_analytics.logMenuImported(menu));
     return _adopt(menu, menu.encode(), MenuSource.imported);
   }
 

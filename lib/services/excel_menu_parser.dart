@@ -899,9 +899,12 @@ class _DayBuilder {
       final items = _items[type];
       if (items == null || items.isEmpty) continue;
 
-      final start = _starts[type] ?? type.defaultStart;
-      var end = _ends[type] ?? type.defaultEnd;
-      if (end <= start) end = type.defaultEnd;
+      // The sheet carries no times, so the canonical window for this slot on
+      // this date is used — which is how Sunday and Monday pick up the later
+      // breakfast.
+      final start = _starts[type] ?? type.startOn(date);
+      var end = _ends[type] ?? type.endOn(date);
+      if (end <= start) end = type.endOn(date);
 
       meals.add(Meal(type: type, startTime: start, endTime: end, items: items));
     }

@@ -36,10 +36,14 @@ Platform minimums, already configured:
 flutter test
 ```
 
-117 tests covering the pure time logic, model parsing (including malformed
-documents), Excel workbook parsing in all three supported layouts — including
-a real published VIT-AP menu — the repository's cache-fallback policy, and
-rendering of the 3-item / 13-item extremes and paired veg/non-veg tiles.
+128 tests covering the pure time logic, model parsing (including malformed
+documents), Excel workbook parsing in all three supported layouts, dish
+classification, the repository's cache-fallback policy, and rendering of the
+3-item / 13-item extremes and paired veg/non-veg tiles.
+
+Drop a real published menu at `test/fixtures/vitap_august_2026.xlsx` to also
+run `real_workbook_test.dart` against the genuine article; without it those
+checks skip and the synthetic rotation fixture covers the same format.
 
 ```bash
 flutter analyze
@@ -62,6 +66,13 @@ That constant is the only place the network source is named. It currently holds
 a **placeholder** GitHub raw URL — point it at your own repository before
 shipping. Everything else about the fetch (timeout, cache keys, schema version)
 lives in the same file.
+
+While `menuUrl` still equals `AppConfig.placeholderMenuUrl`, the app treats
+downloading as unavailable: it never fires a request that is guaranteed to
+fail, Settings hides **Refresh now** and explains that the spreadsheet is the
+only source, and pull-to-refresh is a no-op. Replace the constant and all of
+that turns on by itself — `AppConfig.isRemoteConfigured` derives from it, so
+there is no second flag to remember.
 
 ---
 
@@ -144,8 +155,10 @@ So a hand-kept sheet does not need cleaning up first:
   Biryani/Vegetable Dum Biryani` stay one line, because a slash means "one of
   these" — splitting on it would invent dishes.
 - **Veg / non-veg markers** written inline as `Telangana Chicken Curry
-  (Non-Veg)` or in a dedicated `Variant` column. Two marked dishes on
-  **adjacent rows** of the same meal are folded into a single "or" tile.
+  (Non-Veg)` or in a dedicated `Variant` column. On the **Veg & Non-Veg** plan,
+  two marked dishes on adjacent rows of the same meal are folded into a single
+  "or" tile — the mess serves one or the other. On the **Special** plan both
+  are served, so they stay as two separate rows.
 - **Trailing prose** — a `MESS SERVICE INSTRUCTIONS` block after the last day
   is detected and excluded, as is anything following it.
 - **Optional columns**: `Mess` / `Plan` / `Tier` (overrides the sheet name and
@@ -157,27 +170,52 @@ So a hand-kept sheet does not need cleaning up first:
 A workbook with no `Day`/`Date` column, or no recognisable meal columns, is
 rejected with a plain-language message rather than importing an empty menu.
 
-`test/fixtures/vitap_august_2026.xlsx` is a real published menu, kept as a
-regression test so a parser change can never silently stop reading the format
-students actually receive.
-
 ### Meal timings
 
 Serving windows are **not** read from the spreadsheet. They come from
-`MealType`'s canonical windows in `lib/models/meal.dart`:
+`MealType`'s canonical windows in `lib/models/meal.dart`, matching the mess
+office's published timings board:
 
 | Meal | Window |
 | --- | --- |
-| Breakfast | 07:15 – 09:00 |
+| Breakfast (Tue–Sat) | 07:00 – 09:00 |
+| Breakfast (Sun & Mon) | 07:15 – 09:15 |
 | Lunch | 12:30 – 14:15 |
-| Snacks | 16:45 – 18:15 |
+| Snacks | 16:30 – 18:15 |
 | Dinner | 19:15 – 21:00 |
+
+Breakfast is the one slot that runs to two clocks, so `MealType.startOn(date)`
+/ `endOn(date)` resolve it per weekday and the Excel parser bakes the right
+window into each day. Settings notes the Sunday/Monday difference under
+Breakfast; a student override replaces both and the note disappears.
 
 Students can override any of them in Settings → *Meal timings* without touching
 the data. Overrides live in `MealTimings`
 (`lib/core/config/meal_timings.dart`) and are applied on top of whatever the
 document says. A `Start` / `End` column in a long-layout sheet overrides the
 canonical window for that meal; a student override still wins over both.
+
+### Dish highlighting
+
+A mess menu is mostly staples — rice, dal, chutney, tea. What a student
+actually scans for is the one dish that decides the meal, so only that dish is
+lifted:
+
+| Dish | Marker |
+| --- | --- |
+| Non-veg (chicken, mutton, fish, prawn, egg…) | **Red** mark, red name, tinted strip |
+| Marquee veg (paneer, mushroom, soya, kofta, chole, rajma, manchurian…) | **Green** mark, green name, tinted strip |
+| Everyday staples (rice, sambar, curd, tea…) | Muted neutral mark |
+
+Classification lives in `lib/core/utils/dish_classifier.dart` as a pure,
+unit-tested function. An explicit `(Veg)` / `(Non-Veg)` marker in the sheet
+always wins; otherwise the dish is judged from its name, so a board that never
+tags anything still gets correct marks. Matching is word-boundary aware —
+"Eggless Cake" and "Beans Poriyal" are not mistaken for egg and beans.
+
+Both tiers use the same rules, and the highlight stays deliberately faint (a
+9% tint and a 3px rule) so the now-serving card remains the only saturated
+element on the screen.
 
 ### Appearance
 

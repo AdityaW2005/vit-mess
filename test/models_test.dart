@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vit_mess/core/constants/strings.dart';
 import 'package:vit_mess/models/app_settings.dart';
 import 'package:vit_mess/models/meal.dart';
 import 'package:vit_mess/models/meal_item.dart';
@@ -408,6 +409,74 @@ void main() {
         () => AppSettings.initial().reminderMeals.add(MealType.lunch),
         throwsUnsupportedError,
       );
+    });
+  });
+
+  group('month labels', () {
+    test('renders a yyyy-MM key as a month name', () {
+      expect(Strings.formatMonthKey('2026-08'), 'August 2026');
+      expect(Strings.formatMonthKey('2026-1'), 'January 2026');
+      expect(Strings.formatMonthKey('2027-12'), 'December 2027');
+    });
+
+    test('falls back rather than showing nothing', () {
+      expect(Strings.formatMonthKey(null), '—');
+      expect(Strings.formatMonthKey(''), '—');
+      expect(Strings.formatMonthKey('   '), '—');
+      // Anything unrecognisable is shown as stored, not swallowed.
+      expect(Strings.formatMonthKey('August'), 'August');
+      expect(Strings.formatMonthKey('2026-13'), '2026-13');
+    });
+  });
+
+  group('MealType weekday windows', () {
+    test('breakfast runs 07:00-09:00 Tuesday to Saturday', () {
+      for (final date in <DateTime>[
+        DateTime(2026, 8, 18), // Tue
+        DateTime(2026, 8, 19), // Wed
+        DateTime(2026, 8, 20), // Thu
+        DateTime(2026, 8, 21), // Fri
+        DateTime(2026, 8, 22), // Sat
+      ]) {
+        expect(MealType.breakfast.startOn(date), const MinuteOfDay(7, 0));
+        expect(MealType.breakfast.endOn(date), const MinuteOfDay(9, 0));
+        expect(MealType.breakfast.hasWeekdayException(date), isFalse);
+      }
+    });
+
+    test('breakfast runs 07:15-09:15 on Sunday and Monday', () {
+      for (final date in <DateTime>[
+        DateTime(2026, 8, 23), // Sun
+        DateTime(2026, 8, 24), // Mon
+      ]) {
+        expect(MealType.breakfast.startOn(date), const MinuteOfDay(7, 15));
+        expect(MealType.breakfast.endOn(date), const MinuteOfDay(9, 15));
+        expect(MealType.breakfast.hasWeekdayException(date), isTrue);
+      }
+    });
+
+    test('the other slots keep one window all week', () {
+      for (final type in <MealType>[
+        MealType.lunch,
+        MealType.snacks,
+        MealType.dinner,
+      ]) {
+        expect(type.hasWeekdayVariants, isFalse);
+        for (var day = 17; day <= 23; day++) {
+          final date = DateTime(2026, 8, day);
+          expect(type.startOn(date), type.defaultStart, reason: '$type $date');
+          expect(type.endOn(date), type.defaultEnd, reason: '$type $date');
+        }
+      }
+    });
+
+    test('matches the published mess timings table', () {
+      expect(MealType.lunch.defaultStart, const MinuteOfDay(12, 30));
+      expect(MealType.lunch.defaultEnd, const MinuteOfDay(14, 15));
+      expect(MealType.snacks.defaultStart, const MinuteOfDay(16, 30));
+      expect(MealType.snacks.defaultEnd, const MinuteOfDay(18, 15));
+      expect(MealType.dinner.defaultStart, const MinuteOfDay(19, 15));
+      expect(MealType.dinner.defaultEnd, const MinuteOfDay(21, 0));
     });
   });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/constants/analytics_events.dart';
 import '../core/utils/date_utils.dart';
 import '../core/utils/result.dart';
 import '../models/app_settings.dart';
@@ -10,6 +11,7 @@ import '../models/meal_item.dart';
 import '../models/menu.dart';
 import '../models/menu_day.dart';
 import '../models/mess.dart';
+import '../repositories/analytics_repository.dart';
 import '../repositories/menu_repository.dart';
 import '../repositories/settings_repository.dart';
 import 'base_view_model.dart';
@@ -87,8 +89,10 @@ class SearchViewModel extends BaseViewModel {
   SearchViewModel({
     required MenuRepository menuRepository,
     required SettingsRepository settingsRepository,
+    required AnalyticsRepository analyticsRepository,
   }) : _menuRepository = menuRepository,
        _settingsRepository = settingsRepository,
+       _analytics = analyticsRepository,
        _settings = settingsRepository.current;
 
   /// How long typing settles before the month is searched.
@@ -96,6 +100,7 @@ class SearchViewModel extends BaseViewModel {
 
   final MenuRepository _menuRepository;
   final SettingsRepository _settingsRepository;
+  final AnalyticsRepository _analytics;
 
   Timer? _debounceTimer;
   StreamSubscription<AppSettings>? _settingsSubscription;
@@ -190,6 +195,13 @@ class SearchViewModel extends BaseViewModel {
     return result;
   }
 
+/// Called when this tab comes to the front.
+  ///
+  /// Tabs live in an `IndexedStack`, so they are built once and never pushed
+  /// as routes — the navigator observer cannot see them and the screen has to
+  /// report itself.
+  void onShown() => unawaited(_analytics.logScreen(AnalyticsScreens.search));
+
   /// Records a new query and re-runs the search once typing settles.
   void setQuery(String value) {
     if (value == _query) return;
@@ -278,6 +290,9 @@ class SearchViewModel extends BaseViewModel {
     }
 
     _groups = List<SearchDayGroup>.unmodifiable(groups);
+    // Logged once typing has settled, so a single search is one event rather
+    // than one per keystroke.
+    unawaited(_analytics.logSearch(term: needle, resultCount: resultCount));
     safeNotify();
   }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../core/utils/dish_classifier.dart';
+
 /// The veg / non-veg marking on a single item.
 ///
 /// A non-null variant means the item is one half of a *paired alternative*:
@@ -47,6 +49,17 @@ class MealItem {
 
   /// True when this item participates in a veg/non-veg pair.
   bool get isPaired => variant != null;
+
+  /// How prominently the item should be marked.
+  ///
+  /// An explicit marker from the sheet always wins; otherwise the dish is
+  /// classified from its name, so "Telangana Chicken Curry" reads as non-veg
+  /// even on a board that never bothered to tag it.
+  DishHighlight get highlight => switch (variant) {
+    ItemVariant.veg => DishHighlight.veg,
+    ItemVariant.nonVeg => DishHighlight.nonVeg,
+    null => classifyDishName(name),
+  };
 
   /// Parses one item, returning `null` when there is nothing renderable.
   ///

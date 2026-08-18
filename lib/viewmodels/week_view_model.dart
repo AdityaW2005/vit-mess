@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../core/config/app_config.dart';
+import '../core/constants/analytics_events.dart';
 import '../core/constants/strings.dart';
 import '../core/utils/date_utils.dart';
 import '../core/utils/result.dart';
@@ -7,6 +9,7 @@ import '../models/app_settings.dart';
 import '../models/menu.dart';
 import '../models/menu_day.dart';
 import '../models/mess.dart';
+import '../repositories/analytics_repository.dart';
 import '../repositories/menu_repository.dart';
 import '../repositories/settings_repository.dart';
 import 'base_view_model.dart';
@@ -18,12 +21,15 @@ class WeekViewModel extends BaseViewModel {
   WeekViewModel({
     required MenuRepository menuRepository,
     required SettingsRepository settingsRepository,
+    required AnalyticsRepository analyticsRepository,
   }) : _menuRepository = menuRepository,
        _settingsRepository = settingsRepository,
+       _analytics = analyticsRepository,
        _settings = settingsRepository.current;
 
   final MenuRepository _menuRepository;
   final SettingsRepository _settingsRepository;
+  final AnalyticsRepository _analytics;
 
   StreamSubscription<AppSettings>? _settingsSubscription;
   StreamSubscription<MenuSnapshot>? _menuSubscription;
@@ -85,6 +91,12 @@ class WeekViewModel extends BaseViewModel {
   /// True while the spreadsheet picker flow is running.
   bool get isImporting => _isImporting;
 
+  /// Whether veg/non-veg alternatives read as one either/or choice.
+  ///
+  /// The Veg & Non-Veg plan serves one of the pair; the Special plan serves
+  /// both, so there they are listed as separate dishes.
+  bool get pairsAlternatives => _mess?.id != AppConfig.messIdSpecial;
+
   /// True when the document covers no days at all.
   bool get isEmpty => _days.isEmpty;
 
@@ -133,8 +145,11 @@ class WeekViewModel extends BaseViewModel {
         // on the device, the import prompt is more useful than an offline
         // notice.
         if (_snapshot != null) return;
+        final isDownloadProblem =
+            failure.kind == FailureKind.network ||
+            failure.kind == FailureKind.unsupported;
         setFailure(
-          failure.kind == FailureKind.network
+          isDownloadProblem
               ? const Failure<MenuSnapshot>(
                   Strings.failureEmpty,
                   kind: FailureKind.empty,
@@ -176,11 +191,27 @@ class WeekViewModel extends BaseViewModel {
     return result;
   }
 
+/// Called when this tab comes to the front.
+  ///
+  /// Tabs live in an `IndexedStack`, so they are built once and never pushed
+  /// as routes — the navigator observer cannot see them and the screen has to
+  /// report itself.
+  void onShown() => unawaited(_analytics.logScreen(AnalyticsScreens.week));
+
+  /// Records that a meal card was opened.
+  void logMealExpanded(MealPresentation presentation) => unawaited(
+    _analytics.logMealExpanded(
+      type: presentation.meal.type,
+      status: presentation.status,
+    ),
+  );
+
   /// Selects the day at [index]. Out-of-range values are ignored.
   void selectDay(int index) {
     if (index < 0 || index >= _days.length || index == _selectedIndex) return;
     _selectedIndex = index;
     _recomputeSelectedMeals();
+    unawaited(_analytics.logDaySelected(daysBetween(_now, _days[index].date)));
     safeNotify();
   }
 

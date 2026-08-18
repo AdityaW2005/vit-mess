@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vit_mess/core/config/app_config.dart';
 import 'package:vit_mess/core/utils/result.dart';
 import 'package:vit_mess/models/menu.dart';
 import 'package:vit_mess/repositories/menu_repository_impl.dart';
@@ -126,7 +127,16 @@ void main() {
   late FakeLocalStorageService storage;
   late FakeFileImportService files;
 
-  MenuRepositoryImpl buildRepository() =>
+  /// A repository wired to a published menu URL, so the network path runs.
+  MenuRepositoryImpl buildRepository() => MenuRepositoryImpl(
+    api: api,
+    storage: storage,
+    files: files,
+    menuUrl: 'https://menus.example.test/menu.json',
+  );
+
+  /// A repository in the shipped configuration, where no menu server exists.
+  MenuRepositoryImpl buildRepositoryWithoutRemote() =>
       MenuRepositoryImpl(api: api, storage: storage, files: files);
 
   PickedWorkbook workbook() => PickedWorkbook(
@@ -353,6 +363,54 @@ void main() {
 
       expect(result.isFailure, isTrue);
       expect(result.failureOrNull!.kind, FailureKind.parse);
+    });
+  });
+
+  group('refreshMenu — no menu server configured', () {
+    test('reports unsupported instead of firing a doomed request', () async {
+      // The shipped build still carries the placeholder URL.
+      expect(AppConfig.isRemoteConfigured, isFalse);
+
+      final result = await buildRepositoryWithoutRemote().refreshMenu();
+
+      expect(result.isFailure, isTrue);
+      expect(result.failureOrNull!.kind, FailureKind.unsupported);
+      // No socket was opened, so the student never waits on a timeout.
+      expect(api.fetchCount, 0);
+    });
+
+    test('leaves an existing cache untouched', () async {
+      storage.document = documentFor('2026-08', dish: 'Cached');
+
+      final repository = buildRepositoryWithoutRemote();
+      await repository.refreshMenu();
+
+      expect(storage.document, contains('Cached'));
+      final reloaded = await repository.getMenu();
+      expect(reloaded.isSuccess, isTrue);
+      expect(
+        reloaded
+            .valueOrNull!
+            .menu
+            .messes
+            .single
+            .days
+            .single
+            .meals
+            .single
+            .items
+            .single
+            .name,
+        'Cached',
+      );
+    });
+
+    test('getMenu still ends at the import prompt', () async {
+      final result = await buildRepositoryWithoutRemote().getMenu();
+
+      expect(result.isFailure, isTrue);
+      expect(result.failureOrNull!.kind, FailureKind.empty);
+      expect(api.fetchCount, 0);
     });
   });
 

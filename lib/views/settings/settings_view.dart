@@ -171,8 +171,7 @@ class _SettingsViewState extends State<SettingsView> {
                       contentPadding: const EdgeInsets.only(left: 8),
                       value: viewModel.settings.reminderMeals.contains(type),
                       onChanged: viewModel.settings.remindersEnabled
-                          ? (value) =>
-                                viewModel.setReminderForMeal(type, value)
+                          ? (value) => viewModel.setReminderForMeal(type, value)
                           : null,
                       title: Text(Strings.mealName(type)),
                       dense: true,
@@ -185,30 +184,40 @@ class _SettingsViewState extends State<SettingsView> {
               title: Strings.settingsDataSection,
               child: Column(
                 children: <Widget>[
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.refresh_rounded),
-                    title: const Text(Strings.settingsForceRefresh),
-                    subtitle: Text(
-                      Strings.lastUpdated(
-                        viewModel.lastUpdated,
-                        DateTime.now(),
+                  // Downloading is only offered once a menu server exists;
+                  // otherwise the button would always fail and teach the
+                  // student to distrust it.
+                  if (viewModel.canRefreshFromServer)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.refresh_rounded),
+                      title: const Text(Strings.settingsForceRefresh),
+                      subtitle: Text(
+                        Strings.lastUpdated(
+                          viewModel.lastUpdated,
+                          DateTime.now(),
+                        ),
                       ),
+                      trailing: viewModel.isRefreshing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : null,
+                      onTap: viewModel.isRefreshing ? null : _refresh,
                     ),
-                    trailing: viewModel.isRefreshing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : null,
-                    onTap: viewModel.isRefreshing ? null : _refresh,
-                  ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.file_open_outlined),
                     title: const Text(Strings.settingsImport),
-                    subtitle: const Text(Strings.settingsImportSubtitle),
+                    subtitle: Text(
+                      viewModel.canRefreshFromServer
+                          ? Strings.settingsImportSubtitle
+                          : '${Strings.settingsImportSubtitle}\n'
+                                '${Strings.lastUpdated(viewModel.lastUpdated, DateTime.now())}',
+                    ),
+                    isThreeLine: !viewModel.canRefreshFromServer,
                     trailing: viewModel.isImporting
                         ? const SizedBox(
                             width: 18,
@@ -232,6 +241,18 @@ class _SettingsViewState extends State<SettingsView> {
             ),
 
             _Section(
+              title: Strings.settingsPrivacySection,
+              child: SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: viewModel.settings.analyticsEnabled,
+                onChanged: viewModel.setAnalyticsEnabled,
+                title: const Text(Strings.settingsAnalytics),
+                subtitle: const Text(Strings.settingsAnalyticsSubtitle),
+                isThreeLine: true,
+              ),
+            ),
+
+            _Section(
               title: Strings.settingsAboutSection,
               child: Column(
                 children: <Widget>[
@@ -241,11 +262,14 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                   _AboutRow(
                     label: Strings.settingsMonthLabel,
-                    value: viewModel.snapshot?.menu.month ?? '—',
+                    value: Strings.formatMonthKey(
+                      viewModel.snapshot?.menu.month,
+                    ),
                   ),
                   _AboutRow(
                     label: Strings.settingsSchemaLabel,
-                    value: 'v${viewModel.snapshot?.menu.schemaVersion ?? AppConfig.supportedSchemaVersion}',
+                    value:
+                        'v${viewModel.snapshot?.menu.schemaVersion ?? AppConfig.supportedSchemaVersion}',
                   ),
                 ],
               ),
@@ -275,7 +299,10 @@ class _Section extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(title.toUpperCase(), style: AppTypography.eyebrow(colors.accent)),
+          Text(
+            title.toUpperCase(),
+            style: AppTypography.eyebrow(colors.accent),
+          ),
           if (subtitle != null) ...<Widget>[
             const SizedBox(height: 6),
             Text(
@@ -509,43 +536,66 @@ class _TimingRow extends StatelessWidget {
     final colors = context.mess;
     final textTheme = Theme.of(context).textTheme;
 
+    // Breakfast runs to two clocks across the week. An override replaces both,
+    // so the note only applies while the published times are in force.
+    final showsWeekdayNote = type.hasWeekdayVariants && !overridden;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(
-            child: Row(
-              children: <Widget>[
-                Flexible(
-                  child: Text(
-                    Strings.mealName(type),
-                    style: textTheme.titleMedium?.copyWith(
-                      color: colors.textPrimary,
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        Strings.mealName(type),
+                        style: textTheme.titleMedium?.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (overridden) ...<Widget>[
+                      const SizedBox(width: 8),
+                      Text(
+                        Strings.settingsTimingsOverridden.toUpperCase(),
+                        style: AppTypography.eyebrow(colors.accent),
+                      ),
+                    ],
+                  ],
                 ),
-                if (overridden) ...<Widget>[
-                  const SizedBox(width: 8),
-                  Text(
-                    Strings.settingsTimingsOverridden.toUpperCase(),
-                    style: AppTypography.eyebrow(colors.accent),
-                  ),
-                ],
-              ],
-            ),
+              ),
+              _TimeButton(
+                label: Strings.formatClock(window.start),
+                onTap: onEditStart,
+              ),
+              Text(
+                '–',
+                style: textTheme.bodyMedium?.copyWith(color: colors.textMuted),
+              ),
+              _TimeButton(
+                label: Strings.formatClock(window.end),
+                onTap: onEditEnd,
+              ),
+              if (overridden)
+                IconButton(
+                  tooltip: Strings.settingsTimingsReset,
+                  onPressed: onReset,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.undo_rounded, size: 18),
+                ),
+            ],
           ),
-          _TimeButton(
-            label: Strings.formatClock(window.start),
-            onTap: onEditStart,
-          ),
-          Text('–', style: textTheme.bodyMedium?.copyWith(color: colors.textMuted)),
-          _TimeButton(label: Strings.formatClock(window.end), onTap: onEditEnd),
-          if (overridden)
-            IconButton(
-              tooltip: Strings.settingsTimingsReset,
-              onPressed: onReset,
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.undo_rounded, size: 18),
+          if (showsWeekdayNote)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                Strings.lateBreakfastNote(),
+                style: textTheme.bodySmall?.copyWith(color: colors.textMuted),
+              ),
             ),
         ],
       ),
