@@ -3,6 +3,9 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Firebase native deps come from the FlutterFire packages; this plugin only
+    // wires in google-services.json, so no BoM block is needed here.
+    id("com.google.gms.google-services")
 }
 
 android {

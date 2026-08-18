@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "222933004607",
+    "project_id": "messup-b1dbd",
+    "storage_bucket": "messup-b1dbd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:222933004607:android:1c22560acb297db927238a",
+        "android_client_info": {
+          "package_name": "com.vitap.messmate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAB1OyrxD8WCKRccWNV2mY5yAlGYAnw_PU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

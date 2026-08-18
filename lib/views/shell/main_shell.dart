@@ -35,6 +35,8 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _onDestinationSelected(int index) {
+    // Tapping the tab you are already on is not a new screen view.
+    if (index == _index) return;
     setState(() => _index = index);
     _reportScreen(index);
   }
