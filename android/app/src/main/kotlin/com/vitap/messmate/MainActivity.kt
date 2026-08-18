@@ -1,4 +1,4 @@
-package com.example.vit_mess
+package com.vitap.messmate
 
 import io.flutter.embedding.android.FlutterActivity
 

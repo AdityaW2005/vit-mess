@@ -1,5 +1,5 @@
 name: vit_mess
-description: "A new Flutter project."
+description: "MessMate — the VIT-AP hostel mess menu, answered in under two seconds."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -43,6 +43,7 @@ dependencies:
   intl: ^0.20.3
   timezone: ^0.11.1
   file_picker: ^12.0.0
+  excel: ^4.0.6
 
 dev_dependencies:
   flutter_test:
@@ -60,10 +61,6 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
