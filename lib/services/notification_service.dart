@@ -60,9 +60,18 @@ class NotificationService {
 
   bool _initialized = false;
   bool _timezoneReady = false;
+  bool _canScheduleExact = false;
 
   /// True once [initialize] has completed successfully.
   bool get isInitialized => _initialized;
+
+  /// True when the platform will honour an exact alarm.
+  ///
+  /// Android 13+ withholds this until the student grants it. Without it the
+  /// system may batch a reminder minutes or hours late, which for a
+  /// "15 minutes before the meal" nudge is the difference between useful and
+  /// pointless.
+  bool get canScheduleExact => _canScheduleExact;
 
   /// Prepares the plugin and the timezone database.
   ///
@@ -94,7 +103,23 @@ class NotificationService {
     }
 
     await _createAndroidChannel();
+    await _refreshExactAlarmCapability();
     return _initialized;
+  }
+
+  /// Re-reads whether exact alarms are currently permitted.
+  Future<void> _refreshExactAlarmCapability() async {
+    if (!_isAndroid) {
+      _canScheduleExact = true; // iOS has no equivalent restriction.
+      return;
+    }
+    try {
+      final android = _androidPlugin;
+      _canScheduleExact = await android?.canScheduleExactNotifications() ?? false;
+    } on Object catch (error) {
+      debugPrint('canScheduleExactNotifications failed: $error');
+      _canScheduleExact = false;
+    }
   }
 
   /// Asks the platform for permission to post notifications.
@@ -106,11 +131,23 @@ class NotificationService {
 
     try {
       if (_isAndroid) {
-        final android = _plugin
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >();
-        return await android?.requestNotificationsPermission() ?? false;
+        final android = _androidPlugin;
+        final granted =
+            await android?.requestNotificationsPermission() ?? false;
+        // Exact alarms are a separate grant. Ask once, here, while the student
+        // is already thinking about reminders.
+        if (granted) {
+          await _refreshExactAlarmCapability();
+          if (!_canScheduleExact) {
+            try {
+              await android?.requestExactAlarmsPermission();
+            } on Object catch (error) {
+              debugPrint('requestExactAlarmsPermission failed: $error');
+            }
+            await _refreshExactAlarmCapability();
+          }
+        }
+        return granted;
       }
       if (_isIOS) {
         final ios = _plugin
@@ -145,11 +182,22 @@ class NotificationService {
       return false;
     }
 
-    if (reminders.isEmpty) return true;
+    if (reminders.isEmpty) {
+      debugPrint('[reminders] nothing to schedule');
+      return true;
+    }
 
+    await _refreshExactAlarmCapability();
     final details = _details();
+    // An exact alarm survives Doze at the minute it was asked for; the inexact
+    // fallback is used only when the student has not granted that.
+    final mode = _canScheduleExact
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexactAllowWhileIdle;
+
     final now = DateTime.now();
     var scheduled = 0;
+    DateTime? next;
 
     for (final reminder in reminders) {
       if (!reminder.fireAt.isAfter(now)) continue;
@@ -160,22 +208,70 @@ class NotificationService {
           body: reminder.body,
           scheduledDate: _toZoned(reminder.fireAt),
           notificationDetails: details,
-          // Inexact alarms need no special permission on Android 12+, and a
-          // meal reminder does not need second-level precision.
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          androidScheduleMode: mode,
         );
         scheduled++;
+        if (next == null || reminder.fireAt.isBefore(next)) {
+          next = reminder.fireAt;
+        }
       } on Object catch (error) {
         debugPrint('Failed to schedule reminder ${reminder.id}: $error');
       }
     }
 
+    debugPrint(
+      '[reminders] scheduled $scheduled (${mode.name}), next: $next',
+    );
     return scheduled > 0;
   }
 
+  /// How many reminders are queued with the system.
+  Future<int> pendingCount() async {
+    if (!await initialize()) return 0;
+    try {
+      return (await _plugin.pendingNotificationRequests()).length;
+    } on Object catch (error) {
+      debugPrint('pendingNotificationRequests failed: $error');
+      return 0;
+    }
+  }
+
+  /// False when the student has switched notifications off for the app, in
+  /// which case nothing will ever be delivered however well it is scheduled.
+  Future<bool> areNotificationsEnabled() async {
+    if (!await initialize()) return false;
+    if (!_isAndroid) return true;
+    try {
+      return await _androidPlugin?.areNotificationsEnabled() ?? false;
+    } on Object catch (error) {
+      debugPrint('areNotificationsEnabled failed: $error');
+      return false;
+    }
+  }
+
+  /// A one-line summary of the delivery pipeline, for debugging.
+  Future<String> diagnostics() async {
+    if (!await initialize()) return 'notifications: not initialised';
+    final android = _androidPlugin;
+    final enabled = _isAndroid
+        ? await android?.areNotificationsEnabled()
+        : null;
+    final pending = await _plugin.pendingNotificationRequests();
+    pending.sort((a, b) => a.id.compareTo(b.id));
+    return 'notifications: enabled=$enabled exact=$_canScheduleExact '
+        'pending=${pending.length} zone=${tz.local.name}';
+  }
+
+  AndroidFlutterLocalNotificationsPlugin? get _androidPlugin =>
+      _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
+
   /// Cancels every pending reminder.
   Future<void> cancelAll() async {
-    if (!_initialized) return;
+    // Initialise first: reminders from a previous session must still be
+    // cancellable even if nothing has scheduled anything yet this run.
+    if (!await initialize()) return;
     try {
       await _plugin.cancelAll();
     } on Object catch (error) {
@@ -241,6 +337,18 @@ class NotificationService {
   tz.Location _resolveLocation() {
     final now = DateTime.now();
     final offset = now.timeZoneOffset;
+
+    // Prefer the campus zone when the device agrees with it, so the common
+    // case is deterministic instead of "whichever database entry matched
+    // first" — two zones can share an offset today and diverge at a DST edge.
+    try {
+      final campus = tz.getLocation(AppConfig.fallbackTimeZone);
+      if (tz.TZDateTime.from(now, campus).timeZoneOffset == offset) {
+        return campus;
+      }
+    } on Object catch (error) {
+      debugPrint('Campus timezone unavailable: $error');
+    }
 
     for (final location in tz.timeZoneDatabase.locations.values) {
       final zoned = tz.TZDateTime.from(now, location);

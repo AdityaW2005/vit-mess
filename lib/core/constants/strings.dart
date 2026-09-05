@@ -101,7 +101,6 @@ class Strings {
   static const String settingsThemeLight = 'Light';
   static const String settingsThemeDark = 'Dark';
   static const String settingsAboutSection = 'About';
-  static const String settingsSchemaLabel = 'Menu format';
   static const String settingsCampusLabel = 'Campus';
   static const String settingsMonthLabel = 'Menu month';
 
@@ -140,6 +139,12 @@ class Strings {
   static const String toastRemindersScheduled = 'Reminders scheduled';
 
   // ------------------------------------------------------- notifications
+  static const String settingsRemindersBlockedOs =
+      'Notifications are switched off for MessUp in your device settings, so '
+      'reminders cannot be delivered.';
+  static const String settingsExactAlarmsOff =
+      'Android may delay reminders because exact alarms are not allowed. '
+      'Grant "Alarms & reminders" in system settings for on-time nudges.';
   static const String notificationTitlePrefix = 'opens in 15 min';
 
   // ------------------------------------------------------------ failures

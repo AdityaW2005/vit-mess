@@ -132,7 +132,7 @@ void main() {
       expect(service.names, contains(AnalyticsEvents.analyticsToggled));
       expect(
         service.paramsFor(AnalyticsEvents.analyticsToggled),
-        containsPair(AnalyticsParams.enabled, false),
+        containsPair(AnalyticsParams.enabled, 'false'),
       );
     });
 
@@ -147,7 +147,7 @@ void main() {
       expect(analytics.isCollecting, isTrue);
       expect(
         service.paramsFor(AnalyticsEvents.analyticsToggled),
-        containsPair(AnalyticsParams.enabled, true),
+        containsPair(AnalyticsParams.enabled, 'true'),
       );
     });
 
@@ -246,7 +246,7 @@ void main() {
       );
       expect(
         service.paramsFor(AnalyticsEvents.remindersToggled),
-        containsPair(AnalyticsParams.enabled, false),
+        containsPair(AnalyticsParams.enabled, 'false'),
       );
     });
 
@@ -283,6 +283,47 @@ void main() {
         expect(legal.hasMatch(name), isTrue, reason: name);
       }
       expect(names.toSet(), hasLength(names.length), reason: 'duplicate name');
+    });
+  });
+
+  group('GA4 accepts every value we send', () {
+    setUp(() async {
+      await analytics.initialize(AppSettings.initial());
+      service.events.clear();
+    });
+
+    test('booleans are coerced to strings, never sent raw', () async {
+      // firebase_analytics asserts on a bool and drops the whole event, so a
+      // raw bool here means the event never reaches GA4.
+      await analytics.logRemindersToggled(enabled: true);
+      await analytics.logOnboardingCompleted(
+        messId: 'special',
+        remindersEnabled: false,
+      );
+      await analytics.logMealTimingChanged(
+        type: MealType.lunch,
+        isReset: true,
+      );
+      await analytics.setConsent(enabled: false);
+
+      expect(service.events, isNotEmpty);
+      for (final (name, params) in service.events) {
+        for (final entry in (params ?? const <String, Object>{}).entries) {
+          expect(
+            entry.value is String || entry.value is num,
+            isTrue,
+            reason: '$name.${entry.key} is ${entry.value.runtimeType}',
+          );
+        }
+      }
+    });
+
+    test('the coerced value is readable in reports', () async {
+      await analytics.logRemindersToggled(enabled: true);
+      expect(
+        service.paramsFor(AnalyticsEvents.remindersToggled),
+        containsPair(AnalyticsParams.enabled, 'true'),
+      );
     });
   });
 }

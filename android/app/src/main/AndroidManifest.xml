@@ -1,10 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Needed so meal reminders survive a reboot; POST_NOTIFICATIONS and
-         VIBRATE come from the flutter_local_notifications manifest.
-         Reminders are scheduled inexactly, so SCHEDULE_EXACT_ALARM is not
-         required. -->
+         VIBRATE come from the flutter_local_notifications manifest. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- A meal reminder is useless if the system batches it half an hour late,
+         so exact alarms are requested. The app degrades to inexact scheduling
+         when the student does not grant this. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:label="MessUp"

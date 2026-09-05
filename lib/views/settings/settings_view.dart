@@ -174,6 +174,22 @@ class _SettingsViewState extends State<SettingsView> {
                       title: Text(Strings.mealName(type)),
                       dense: true,
                     ),
+
+                  // Scheduling can be flawless and still deliver nothing if
+                  // the OS is blocking it, so the blocker is named rather
+                  // than leaving the student to wonder.
+                  if (viewModel.notificationsBlockedByOs)
+                    const _ReminderNotice(
+                      icon: Icons.notifications_off_rounded,
+                      message: Strings.settingsRemindersBlockedOs,
+                      tone: _NoticeTone.problem,
+                    ),
+                  if (viewModel.remindersMayBeDelayed)
+                    const _ReminderNotice(
+                      icon: Icons.timer_off_outlined,
+                      message: Strings.settingsExactAlarmsOff,
+                    ),
+
                 ],
               ),
             ),
@@ -188,32 +204,18 @@ class _SettingsViewState extends State<SettingsView> {
                   // otherwise the button would always fail and teach the
                   // student to distrust it.
                   if (viewModel.canRefreshFromServer)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.refresh_rounded),
-                      title: const Text(Strings.settingsForceRefresh),
-                      trailing: viewModel.isRefreshing
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : null,
-                      onTap: viewModel.isRefreshing ? null : _refresh,
+                    _DataActionCard(
+                      icon: Icons.refresh_rounded,
+                      title: Strings.settingsForceRefresh,
+                      busy: viewModel.isRefreshing,
+                      onTap: _refresh,
                     ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.file_open_outlined),
-                    title: const Text(Strings.settingsImport),
-                    subtitle: const Text(Strings.settingsImportSubtitle),
-                    trailing: viewModel.isImporting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : null,
-                    onTap: viewModel.isImporting ? null : _import,
+                  _DataActionCard(
+                    icon: Icons.upload_file_rounded,
+                    title: Strings.settingsImport,
+                    subtitle: Strings.settingsImportSubtitle,
+                    busy: viewModel.isImporting,
+                    onTap: _import,
                   ),
                 ],
               ),
@@ -240,11 +242,6 @@ class _SettingsViewState extends State<SettingsView> {
                     value: Strings.formatMonthKey(
                       viewModel.snapshot?.menu.month,
                     ),
-                  ),
-                  _AboutRow(
-                    label: Strings.settingsSchemaLabel,
-                    value:
-                        'v${viewModel.snapshot?.menu.schemaVersion ?? AppConfig.supportedSchemaVersion}',
                   ),
                 ],
               ),
@@ -326,6 +323,159 @@ class _MenuStatusCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// How prominently a reminder notice reads.
+enum _NoticeTone { problem, caution }
+
+/// A short explanation of why reminders may not arrive.
+class _ReminderNotice extends StatelessWidget {
+  const _ReminderNotice({
+    required this.icon,
+    required this.message,
+    this.tone = _NoticeTone.caution,
+  });
+
+  final IconData icon;
+  final String message;
+  final _NoticeTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.mess;
+    final accent = tone == _NoticeTone.problem ? colors.danger : colors.accent;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(AppTheme.chipRadius),
+          border: Border.all(color: accent.withValues(alpha: 0.35)),
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Icon(icon, size: 18, color: accent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A tappable action in the Menu data section.
+///
+/// Built to match [_MenuStatusCard] sitting above it: the same rounded plate
+/// and circular badge, so the state and the action that changes it read as one
+/// pair rather than a card followed by a list row.
+class _DataActionCard extends StatelessWidget {
+  const _DataActionCard({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.busy = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.mess;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Semantics(
+        button: true,
+        label: title,
+        child: Material(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(AppTheme.chipRadius),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: busy ? null : onTap,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppTheme.chipRadius),
+                border: Border.all(color: colors.hairline),
+              ),
+              padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: colors.accentTint,
+                      shape: BoxShape.circle,
+                    ),
+                    child: busy
+                        ? Padding(
+                            padding: const EdgeInsets.all(9),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colors.accent,
+                            ),
+                          )
+                        : Icon(icon, size: 19, color: colors.accent),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          title,
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        if (subtitle != null) ...<Widget>[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

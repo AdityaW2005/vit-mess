@@ -23,15 +23,32 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _reportScreen(_index);
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    // The reminder schedule only runs a week ahead and the system drops
+    // pending alarms on reboot, so coming back to the app rebuilds it. The
+    // ViewModel owns that work; the shell only reports the lifecycle.
+    context.read<HomeViewModel>().onAppResumed();
+    context.read<SettingsViewModel>().refreshReminderStatus();
   }
 
   void _onDestinationSelected(int index) {

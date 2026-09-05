@@ -146,6 +146,10 @@ class HomeViewModel extends BaseViewModel {
         _snapshot = snapshot;
         _recompute();
         setState(ViewState.ready);
+        // Reminders were previously only rescheduled after a successful
+        // refresh — which never happens without a menu server, so a cached
+        // menu left them unscheduled. Launching with a menu is enough.
+        unawaited(_rescheduleReminders());
       },
       onFailure: setFailure,
     );
@@ -156,7 +160,7 @@ class HomeViewModel extends BaseViewModel {
     unawaited(refresh());
   }
 
-/// Called when this tab comes to the front.
+  /// Called when this tab comes to the front.
   ///
   /// Tabs live in an `IndexedStack`, so they are built once and never pushed
   /// as routes — the navigator observer cannot see them and the screen has to
@@ -188,10 +192,7 @@ class HomeViewModel extends BaseViewModel {
     _isRefreshing = false;
 
     result.fold(
-      onSuccess: (snapshot) {
-        _adoptSnapshot(snapshot);
-        unawaited(_rescheduleReminders());
-      },
+      onSuccess: _adoptSnapshot,
       onFailure: (failure) {
         if (_snapshot != null) {
           // A cached menu is already on screen: keep it. Only a genuine
@@ -231,10 +232,7 @@ class HomeViewModel extends BaseViewModel {
 
     _isImporting = false;
     result.fold(
-      onSuccess: (snapshot) {
-        _adoptSnapshot(snapshot);
-        unawaited(_rescheduleReminders());
-      },
+      onSuccess: _adoptSnapshot,
       onFailure: (failure) {
         // Cancelling leaves whatever is on screen alone. A genuinely bad
         // workbook replaces the empty state with an explanation, but never
@@ -292,9 +290,25 @@ class HomeViewModel extends BaseViewModel {
     clearError();
   }
 
+  /// A menu adopted anywhere — refresh, import, another screen — arrives here,
+  /// which is the single place the reminder schedule is rebuilt for it.
   void _onMenuChanged(MenuSnapshot snapshot) {
     if (isDisposed) return;
     _adoptSnapshot(snapshot);
+    unawaited(_rescheduleReminders());
+  }
+
+  /// Called when the app returns to the foreground.
+  ///
+  /// The schedule only reaches [AppConfig.reminderHorizonDays] ahead, and the
+  /// system drops pending alarms on reboot, so it is rebuilt whenever the
+  /// student comes back rather than only when something is edited.
+  void onAppResumed() {
+    if (isDisposed) return;
+    _now = DateTime.now();
+    _recompute();
+    safeNotify();
+    unawaited(_rescheduleReminders());
   }
 
   void _onSettingsChanged(AppSettings settings) {
@@ -364,7 +378,7 @@ class HomeViewModel extends BaseViewModel {
 
   Future<void> _rescheduleReminders() async {
     final snapshot = _snapshot;
-    if (snapshot == null || !_settings.remindersEnabled) return;
+    if (snapshot == null) return;
     await _reminderRepository.reschedule(
       menu: snapshot.menu,
       settings: _settings,

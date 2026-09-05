@@ -187,6 +187,24 @@ class AnalyticsRepositoryImpl implements AnalyticsRepository {
 
   Future<void> _log(String name, [Map<String, Object>? parameters]) {
     if (!_consented) return Future<void>.value();
-    return _analytics.logEvent(name, parameters);
+    return _analytics.logEvent(name, _sanitize(parameters));
+  }
+
+  /// Coerces values into what GA4 accepts.
+  ///
+  /// The SDK only takes `String` and `num`, and asserts on anything else — a
+  /// `bool` silently costs you the whole event. Normalising here means no call
+  /// site can reintroduce that.
+  static Map<String, Object>? _sanitize(Map<String, Object>? parameters) {
+    if (parameters == null || parameters.isEmpty) return parameters;
+    return <String, Object>{
+      for (final entry in parameters.entries)
+        entry.key: switch (entry.value) {
+          final bool value => value ? 'true' : 'false',
+          final num value => value,
+          final String value => value,
+          final Object value => value.toString(),
+        },
+    };
   }
 }

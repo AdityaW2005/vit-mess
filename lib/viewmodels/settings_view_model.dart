@@ -70,6 +70,7 @@ class SettingsViewModel extends BaseViewModel {
   bool _isRefreshing = false;
   bool _isImporting = false;
   bool _notificationsBlocked = false;
+  ReminderStatus? _reminderStatus;
 
   // ------------------------------------------------------------- getters
 
@@ -109,6 +110,19 @@ class SettingsViewModel extends BaseViewModel {
 
   /// True while the file picker flow is running.
   bool get isImporting => _isImporting;
+
+  /// What the platform will currently allow reminders to do, once known.
+  ReminderStatus? get reminderStatus => _reminderStatus;
+
+  /// True when the OS is blocking notifications outright.
+  bool get notificationsBlockedByOs =>
+      _settings.remindersEnabled && _reminderStatus?.notificationsAllowed == false;
+
+  /// True when reminders will be delivered, but possibly late.
+  bool get remindersMayBeDelayed =>
+      _settings.remindersEnabled &&
+      _reminderStatus?.notificationsAllowed == true &&
+      _reminderStatus?.exactAlarmsAllowed == false;
 
   /// True when the platform refused notification permission.
   ///
@@ -170,6 +184,8 @@ class SettingsViewModel extends BaseViewModel {
     final result = await _menuRepository.getMenu();
     if (isDisposed) return;
 
+    unawaited(refreshReminderStatus());
+
     result.fold(
       onSuccess: (snapshot) {
         _snapshot = snapshot;
@@ -193,6 +209,15 @@ class SettingsViewModel extends BaseViewModel {
   /// Called when the first-run tier picker appears.
   void onOnboardingShown() =>
       unawaited(_analytics.logScreen(AnalyticsScreens.onboarding));
+
+  /// Re-reads what the platform will allow, so the warnings stay truthful
+  /// after a trip to system settings.
+  Future<void> refreshReminderStatus() async {
+    final status = await _reminderRepository.status();
+    if (isDisposed) return;
+    _reminderStatus = status;
+    safeNotify();
+  }
 
   /// Switches the subscription tier and reschedules reminders.
   Future<void> selectMess(String messId) async {
@@ -270,6 +295,7 @@ class SettingsViewModel extends BaseViewModel {
 
     unawaited(_analytics.logRemindersToggled(enabled: true));
     await _persist(_settings.copyWith(remindersEnabled: true));
+    await refreshReminderStatus();
     return true;
   }
 

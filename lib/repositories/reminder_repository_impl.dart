@@ -39,12 +39,17 @@ class ReminderRepositoryImpl implements ReminderRepository {
     final moment = now ?? DateTime.now();
 
     if (!settings.remindersEnabled || settings.reminderMeals.isEmpty) {
+      debugPrint(
+        '[reminders] none scheduled: enabled=${settings.remindersEnabled} '
+        'meals=${settings.reminderMeals.length}',
+      );
       await cancelAll();
       return const Result<int>.success(0);
     }
 
     final mess = menu.messByIdOrFirst(settings.messId);
     if (mess == null) {
+      debugPrint('[reminders] none scheduled: no tier for ${settings.messId}');
       await cancelAll();
       return const Result<int>.success(0);
     }
@@ -75,6 +80,11 @@ class ReminderRepositoryImpl implements ReminderRepository {
       }
     }
 
+    debugPrint(
+      '[reminders] built ${reminders.length} from ${mess.days.length} days '
+      'covering ${AppConfig.reminderHorizonDays} days from $moment',
+    );
+
     try {
       await _notifications.replaceAll(reminders);
       return Result<int>.success(reminders.length);
@@ -90,6 +100,16 @@ class ReminderRepositoryImpl implements ReminderRepository {
 
   @override
   Future<void> cancelAll() => _notifications.cancelAll();
+
+  @override
+  Future<ReminderStatus> status() async {
+    final pending = await _notifications.pendingCount();
+    return ReminderStatus(
+      notificationsAllowed: await _notifications.areNotificationsEnabled(),
+      exactAlarmsAllowed: _notifications.canScheduleExact,
+      pending: pending,
+    );
+  }
 
   /// The first few dish names, used as the notification body.
   List<String> _previewItems(Meal meal) => meal.items

@@ -1,6 +1,33 @@
+import 'package:flutter/foundation.dart';
+
 import '../core/utils/result.dart';
 import '../models/app_settings.dart';
 import '../models/menu.dart';
+
+/// What the platform will currently let reminders do.
+@immutable
+class ReminderStatus {
+  /// Creates a status snapshot.
+  const ReminderStatus({
+    required this.notificationsAllowed,
+    required this.exactAlarmsAllowed,
+    required this.pending,
+  });
+
+  /// False when the student has notifications switched off for the app.
+  final bool notificationsAllowed;
+
+  /// False when Android will only deliver batched, inexact alarms.
+  final bool exactAlarmsAllowed;
+
+  /// How many reminders are currently queued with the system.
+  final int pending;
+
+  @override
+  String toString() =>
+      'ReminderStatus(allowed=$notificationsAllowed, '
+      'exact=$exactAlarmsAllowed, pending=$pending)';
+}
 
 /// Owns meal-reminder scheduling policy.
 ///
@@ -25,4 +52,7 @@ abstract class ReminderRepository {
 
   /// Removes every pending reminder.
   Future<void> cancelAll();
+
+  /// What the platform will currently allow, and how many reminders are queued.
+  Future<ReminderStatus> status();
 }
