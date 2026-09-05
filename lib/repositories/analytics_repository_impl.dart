@@ -103,6 +103,15 @@ class AnalyticsRepositoryImpl implements AnalyticsRepository {
   // ---------------------------------------------------------- interaction
 
   @override
+  Future<void> logStaleMenuImport({
+    required String month,
+    required bool adopted,
+  }) => _log(AnalyticsEvents.menuImportStale, <String, Object>{
+    AnalyticsParams.month: month,
+    AnalyticsParams.adopted: adopted,
+  });
+
+  @override
   Future<void> logSearch({
     required String term,
     required int resultCount,

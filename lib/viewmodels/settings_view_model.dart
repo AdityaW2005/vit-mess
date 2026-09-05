@@ -118,6 +118,14 @@ class SettingsViewModel extends BaseViewModel {
   /// Tiers the loaded document carries.
   int get menuTierCount => _snapshot?.menu.messes.length ?? 0;
 
+  /// True when the loaded document is for a month that has already passed.
+  ///
+  /// It still parses and still shows in Week, but it can no longer answer
+  /// "what is being served now", and it schedules no reminders — so the status
+  /// card says so rather than showing a green tick.
+  bool get isMenuExpired =>
+      _snapshot?.menu.isBeforeMonthOf(DateTime.now()) ?? false;
+
   /// True while the file picker flow is running.
   bool get isImporting => _isImporting;
 
@@ -127,8 +135,6 @@ class SettingsViewModel extends BaseViewModel {
   /// the line out rather than showing a guess.
   String? get appVersion => _appVersion;
 
-  /// What the platform will currently allow reminders to do, once known.
-  ReminderStatus? get reminderStatus => _reminderStatus;
 
   /// True when the OS is blocking notifications outright.
   bool get notificationsBlockedByOs =>
@@ -162,13 +168,6 @@ class SettingsViewModel extends BaseViewModel {
     );
   }
 
-  /// The selected tier's display name, or its id as a fallback.
-  String get selectedMessName {
-    for (final option in messOptions) {
-      if (option.id == _settings.messId) return option.name;
-    }
-    return _settings.messId;
-  }
 
   /// The effective window for [type], override included.
   MealWindow windowFor(MealType type) => _settings.timings.windowFor(type);
@@ -400,7 +399,9 @@ class SettingsViewModel extends BaseViewModel {
   }
 
   /// Imports a menu document chosen by the student.
-  Future<Result<MenuSnapshot>> importMenu() async {
+  Future<Result<MenuSnapshot>> importMenu({
+    ConfirmStaleImport? confirmStaleMonth,
+  }) async {
     if (_isImporting) {
       return const Result<MenuSnapshot>.failure(
         'An import is already running.',
@@ -410,7 +411,9 @@ class SettingsViewModel extends BaseViewModel {
     _isImporting = true;
     safeNotify();
 
-    final result = await _menuRepository.importMenu();
+    final result = await _menuRepository.importMenu(
+      confirmStaleMonth: confirmStaleMonth,
+    );
     if (isDisposed) return result;
 
     _isImporting = false;

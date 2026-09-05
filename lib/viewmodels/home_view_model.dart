@@ -55,7 +55,6 @@ class HomeViewModel extends BaseViewModel {
   bool _initialized = false;
   bool _isRefreshing = false;
   bool _isImporting = false;
-  bool _refreshFailedQuietly = false;
 
   // ------------------------------------------------------------- getters
 
@@ -88,11 +87,6 @@ class HomeViewModel extends BaseViewModel {
   /// True while the spreadsheet picker flow is running.
   bool get isImporting => _isImporting;
 
-  /// True when a background refresh failed but a cached menu is still shown.
-  ///
-  /// The UI marks this with a quiet "last updated" line, never an error
-  /// banner.
-  bool get isShowingStaleData => _refreshFailedQuietly;
 
   /// When the menu in hand was fetched or imported.
   DateTime? get lastUpdated => _snapshot?.lastUpdated;
@@ -115,9 +109,6 @@ class HomeViewModel extends BaseViewModel {
   /// both, so there they are listed as separate dishes.
   bool get pairsAlternatives => _mess?.id != AppConfig.messIdSpecial;
 
-  /// True when the day exists but carries no meals at all.
-  bool get hasEmptyDay =>
-      _snapshot != null && _today != null && _today!.meals.isEmpty;
 
   // -------------------------------------------------------------- actions
 
@@ -198,7 +189,6 @@ class HomeViewModel extends BaseViewModel {
           // A cached menu is already on screen: keep it. Only a genuine
           // network failure is worth the quiet "last updated" marker — a build
           // with no menu server simply has nothing to download.
-          _refreshFailedQuietly = failure.kind == FailureKind.network;
           safeNotify();
         } else if (failure.kind == FailureKind.network ||
             failure.kind == FailureKind.unsupported) {
@@ -217,7 +207,9 @@ class HomeViewModel extends BaseViewModel {
   ///
   /// This is the primary way a menu arrives while the remote document is not
   /// reachable, so it is offered directly from the empty state.
-  Future<Result<MenuSnapshot>> importMenu() async {
+  Future<Result<MenuSnapshot>> importMenu({
+    ConfirmStaleImport? confirmStaleMonth,
+  }) async {
     if (_isImporting) {
       return const Result<MenuSnapshot>.failure(
         'An import is already running.',
@@ -227,7 +219,9 @@ class HomeViewModel extends BaseViewModel {
     _isImporting = true;
     safeNotify();
 
-    final result = await _menuRepository.importMenu();
+    final result = await _menuRepository.importMenu(
+      confirmStaleMonth: confirmStaleMonth,
+    );
     if (isDisposed) return result;
 
     _isImporting = false;
@@ -284,7 +278,6 @@ class HomeViewModel extends BaseViewModel {
   /// Adopts a newly loaded menu and clears any error state.
   void _adoptSnapshot(MenuSnapshot snapshot) {
     _snapshot = snapshot;
-    _refreshFailedQuietly = false;
     _recompute();
     setState(ViewState.ready);
     clearError();

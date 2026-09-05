@@ -30,6 +30,10 @@ class AnalyticsEvents {
   /// The app had no menu at all and showed the import prompt.
   static const String menuEmptyPromptShown = 'menu_empty_prompt_shown';
 
+  /// A spreadsheet for a month that has already passed was chosen. The
+  /// `adopted` parameter says whether the student went through with it.
+  static const String menuImportStale = 'menu_import_stale';
+
   // ---------------------------------------------------------- interaction
   /// A dish search ran. Uses GA4's reserved `search` event.
   static const String search = 'search';
@@ -121,6 +125,9 @@ class AnalyticsParams {
 
   /// True when a meal window was reset rather than set.
   static const String isReset = 'is_reset';
+
+  /// True when an out-of-date spreadsheet was imported despite the warning.
+  static const String adopted = 'adopted';
 
   /// Which developer link was followed: `github`, `linkedin` or `email`.
   static const String link = 'link';

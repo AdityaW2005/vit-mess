@@ -45,8 +45,6 @@ class FakeNotificationService implements NotificationService {
   @override
   Future<bool> areNotificationsEnabled() async => permissionGranted;
 
-  @override
-  Future<String> diagnostics() async => 'fake';
 }
 
 /// A month of menu built around [anchor], so tests are date-independent.

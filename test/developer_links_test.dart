@@ -86,6 +86,12 @@ class RecordingAnalyticsRepository implements AnalyticsRepository {
   Future<void> logEmptyPromptShown() async {}
 
   @override
+  Future<void> logStaleMenuImport({
+    required String month,
+    required bool adopted,
+  }) async {}
+
+  @override
   Future<void> logSearch({
     required String term,
     required int resultCount,
@@ -145,7 +151,10 @@ class StubMenuRepository implements MenuRepository {
   Future<Result<MenuSnapshot>> refreshMenu() async => getMenu();
 
   @override
-  Future<Result<MenuSnapshot>> importMenu() async => getMenu();
+  Future<Result<MenuSnapshot>> importMenu({
+    ConfirmStaleImport? confirmStaleMonth,
+    DateTime? now,
+  }) async => getMenu();
 
   @override
   Future<DateTime?> lastUpdated() async => null;

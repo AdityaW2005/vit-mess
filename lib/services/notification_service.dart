@@ -249,18 +249,6 @@ class NotificationService {
     }
   }
 
-  /// A one-line summary of the delivery pipeline, for debugging.
-  Future<String> diagnostics() async {
-    if (!await initialize()) return 'notifications: not initialised';
-    final android = _androidPlugin;
-    final enabled = _isAndroid
-        ? await android?.areNotificationsEnabled()
-        : null;
-    final pending = await _plugin.pendingNotificationRequests();
-    pending.sort((a, b) => a.id.compareTo(b.id));
-    return 'notifications: enabled=$enabled exact=$_canScheduleExact '
-        'pending=${pending.length} zone=${tz.local.name}';
-  }
 
   AndroidFlutterLocalNotificationsPlugin? get _androidPlugin =>
       _plugin.resolvePlatformSpecificImplementation<

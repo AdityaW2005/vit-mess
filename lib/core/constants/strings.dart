@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../../models/app_settings.dart';
 import '../../models/developer.dart';
 import '../../models/meal.dart';
-import '../../models/menu.dart';
 
 /// Every user-facing string in the app.
 ///
@@ -14,7 +13,6 @@ class Strings {
 
   // ------------------------------------------------------------------ app
   static const String appName = 'MessUp';
-  static const String appTagline = 'Your mess, minus the guesswork';
 
   // ----------------------------------------------------------- navigation
   static const String navHome = 'Today';
@@ -45,12 +43,8 @@ class Strings {
   static const String homeUpNext = 'Up next';
   static const String homeRestOfDay = 'Rest of the day';
   static const String homeTomorrow = 'Tomorrow';
-  static const String homeToday = 'Today';
   static const String homeClosesIn = 'closes in';
   static const String homeStartsIn = 'starts in';
-  static const String homeClosingNow = 'Closing now';
-  static const String homeOpeningNow = 'Opening now';
-  static const String homePullToRefresh = 'Pull down to refresh';
   static const String homeMenuUnavailableTitle =
       "This month's menu isn't up yet";
   static const String homeMenuUnavailableBody =
@@ -62,7 +56,6 @@ class Strings {
 
   // ----------------------------------------------------------------- week
   static const String weekTitle = 'This month';
-  static const String weekSwipeHint = 'Swipe to change day';
 
   // --------------------------------------------------------------- search
   static const String searchTitle = 'Search the menu';
@@ -111,10 +104,7 @@ class Strings {
   static const String errorOfflineBody =
       'You are offline, or the menu server is down. Nothing is cached yet, so '
       'there is nothing to show.';
-  static const String errorParseTitle = "That file doesn't look right";
   static const String errorParseTitleSheet = "That sheet couldn't be read";
-  static const String errorParseBody =
-      'The menu file could not be read. It may be for a different app version.';
   static const String errorRetry = 'Try again';
   static const String errorImportInstead = 'Import a spreadsheet instead';
 
@@ -132,8 +122,6 @@ class Strings {
   // --------------------------------------------------------------- toasts
   static const String toastRefreshed = 'Menu updated';
   static const String toastImported = 'Menu imported';
-  static const String toastImportedNamed = 'Imported';
-  static const String toastPlanChanged = 'Mess plan updated';
   static const String toastTimingsReset = 'Timings reset';
   static const String toastRemindersBlocked =
       'Notifications are blocked. Enable them in your device settings.';
@@ -169,12 +157,36 @@ class Strings {
   static const String failureUnknown =
       'Something went wrong loading the menu. Please try again.';
 
+  // ------------------------------------------------- out-of-date spreadsheet
+  static const String staleImportTitle = 'This menu has expired';
+  static const String staleImportAccept = 'Import anyway';
+  static const String staleImportCancel = 'Keep current menu';
+  static const String staleImportDismiss = 'Choose another file';
+
+  /// Explains what the chosen spreadsheet covers and what accepting it costs.
+  static String staleImportBody({
+    required String month,
+    String? currentMonth,
+  }) {
+    final chosen = formatMonthKey(month);
+    if (currentMonth == null) {
+      return 'This spreadsheet is for $chosen, which has already passed. '
+          'Today and Week will have nothing to show.';
+    }
+    return 'This spreadsheet is for $chosen, which has already passed. '
+        'Importing it replaces your ${formatMonthKey(currentMonth)} menu and '
+        'clears any meal reminders.';
+  }
+
+  /// Shown in Menu data when the loaded document is out of date.
+  static const String settingsMenuExpired = 'Menu has expired';
+
+  /// Reported when the student backs out of an out-of-date import.
+  static const String failureStaleDeclined = 'Import cancelled.';
+
   // ------------------------------------------------------------- developer
   /// The Settings footer. The name itself is the tappable part.
   static const String developerCreatedBy = 'Created by';
-
-  /// Greeting above the name in the about sheet.
-  static const String developerGreeting = 'Hey there';
 
   /// Button labels, in the order the sheet lays them out.
   static const String developerGithubLabel = 'Check my works';
@@ -208,8 +220,6 @@ class Strings {
   static const String a11yAboutDeveloper = 'About the developer';
 
   // ------------------------------------------------------------ variants
-  static const String variantVeg = 'Veg';
-  static const String variantNonVeg = 'Non-veg';
   static const String variantOr = 'or';
 
   // ----------------------------------------------------------- formatters
@@ -234,17 +244,7 @@ class Strings {
     MealType.dinner => 'Dinner',
   };
 
-  /// Display name for a menu source, used on the "last updated" line.
-  static String menuSourceLabel(MenuSource source) => switch (source) {
-    MenuSource.cache => 'Saved on this device',
-    MenuSource.network => 'Downloaded',
-    MenuSource.imported => 'Imported file',
-  };
-
-  /// A countdown, at the coarsest useful precision.
-  ///
-  /// Seconds only appear inside the last minute, so the digits do not churn
-  /// distractingly for the other 99% of the time.
+  /// `2h 15m`, `43 min`, `12 sec` — the coarsest unit that stays truthful.
   static String formatCountdown(Duration duration) {
     if (duration <= Duration.zero) return '0 sec';
     if (duration.inHours >= 1) {
@@ -302,23 +302,6 @@ class Strings {
     return 'In $daysFromToday days';
   }
 
-  /// `Updated 5 min ago`, or the date once it is more than a day old.
-  static String lastUpdated(DateTime? timestamp, DateTime now) {
-    if (timestamp == null) return settingsNeverUpdated;
-    final elapsed = now.difference(timestamp);
-    if (elapsed.isNegative || elapsed.inMinutes < 1) return 'Updated just now';
-    if (elapsed.inHours < 1) return 'Updated ${elapsed.inMinutes} min ago';
-    if (elapsed.inHours < 24) {
-      final hours = elapsed.inHours;
-      return 'Updated $hours ${hours == 1 ? 'hour' : 'hours'} ago';
-    }
-    if (elapsed.inDays < 7) {
-      final days = elapsed.inDays;
-      return 'Updated $days ${days == 1 ? 'day' : 'days'} ago';
-    }
-    return 'Updated ${DateFormat('d MMM').format(timestamp)}';
-  }
-
   /// `August 2026 · 31 days · 2 plans` — what a loaded document covers.
   static String menuCoverage({
     required String? month,
@@ -333,15 +316,6 @@ class Strings {
   /// `3 items` / `1 item`.
   static String itemCount(int count) =>
       '$count ${count == 1 ? 'item' : 'items'}';
-
-  /// `Breakfast closes in 42 min` style hero subtitle.
-  static String countdownSentence({
-    required MealType type,
-    required bool isServing,
-    required Duration remaining,
-  }) =>
-      '${mealName(type)} ${isServing ? homeClosesIn : homeStartsIn} '
-      '${formatCountdown(remaining)}';
 
   /// Notification title, e.g. `Lunch opens in 15 min`.
   static String reminderTitle(MealType type) =>

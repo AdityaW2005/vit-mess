@@ -11,6 +11,7 @@ import '../../models/app_settings.dart';
 import '../../models/meal.dart';
 import '../../viewmodels/settings_view_model.dart';
 import '../../widgets/developer_sheet.dart';
+import '../../widgets/stale_menu_dialog.dart';
 
 /// Tier, timings, reminders and menu data.
 class SettingsView extends StatefulWidget {
@@ -49,7 +50,14 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Future<void> _import() async {
-    final result = await context.read<SettingsViewModel>().importMenu();
+    final result = await context.read<SettingsViewModel>().importMenu(
+      confirmStaleMonth: (candidate) async {
+        // The picker ran on another screen; this one may be gone by now, and
+        // the safe answer is to leave the cached menu alone.
+        if (!mounted) return false;
+        return confirmStaleMenuImport(context, candidate);
+      },
+    );
     if (!mounted) return;
     final message = result.fold<String?>(
       onSuccess: (_) => Strings.toastImported,
@@ -343,10 +351,17 @@ class _MenuStatusCard extends StatelessWidget {
     final colors = context.mess;
     final textTheme = Theme.of(context).textTheme;
     final loaded = viewModel.hasMenu;
+    final expired = loaded && viewModel.isMenuExpired;
 
     // Green reads as "you are set up"; the muted state is a prompt, not an
-    // error, so it stays quiet rather than alarming.
-    final accent = loaded ? colors.veg : colors.textMuted;
+    // error, so it stays quiet rather than alarming. An expired document is
+    // neither — it loaded fine, it just cannot answer today, so it takes the
+    // accent rather than a green tick or a red failure.
+    final accent = expired
+        ? colors.accent
+        : loaded
+        ? colors.veg
+        : colors.textMuted;
 
     return Container(
       decoration: BoxDecoration(
@@ -363,7 +378,11 @@ class _MenuStatusCard extends StatelessWidget {
             height: 30,
             decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
             child: Icon(
-              loaded ? Icons.check_rounded : Icons.file_upload_outlined,
+              expired
+                  ? Icons.event_busy_rounded
+                  : loaded
+                  ? Icons.check_rounded
+                  : Icons.file_upload_outlined,
               size: 18,
               color: colors.canvas,
             ),
@@ -374,7 +393,9 @@ class _MenuStatusCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  loaded
+                  expired
+                      ? Strings.settingsMenuExpired
+                      : loaded
                       ? Strings.settingsMenuLoaded
                       : Strings.settingsMenuMissing,
                   style: textTheme.titleMedium?.copyWith(

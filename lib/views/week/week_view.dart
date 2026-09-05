@@ -11,6 +11,7 @@ import '../../widgets/error_state.dart';
 import '../../widgets/meal_card.dart';
 import '../../widgets/shimmer_loader.dart';
 import '../../widgets/staggered_entrance.dart';
+import '../../widgets/stale_menu_dialog.dart';
 
 /// Browses the whole month: a day strip on top, that day's four meals below.
 ///
@@ -41,7 +42,14 @@ class _WeekViewState extends State<WeekView> {
     final viewModel = context.read<WeekViewModel>();
     final messenger = ScaffoldMessenger.of(context);
 
-    final result = await viewModel.importMenu();
+    final result = await viewModel.importMenu(
+      confirmStaleMonth: (candidate) async {
+        // The picker ran on another screen; this one may be gone by now, and
+        // the safe answer is to leave the cached menu alone.
+        if (!mounted) return false;
+        return confirmStaleMenuImport(context, candidate);
+      },
+    );
     if (!mounted) return;
 
     final message = result.fold<String?>(
@@ -64,8 +72,9 @@ class _WeekViewState extends State<WeekView> {
   /// Creates the controller once the day count is known, and keeps its page in
   /// step with the ViewModel's selection.
   PageController _controllerFor(int selectedIndex) {
-    final controller =
-        _pageController ??= PageController(initialPage: selectedIndex);
+    final controller = _pageController ??= PageController(
+      initialPage: selectedIndex,
+    );
 
     if (selectedIndex != _lastSyncedIndex) {
       _lastSyncedIndex = selectedIndex;
@@ -100,16 +109,17 @@ class _WeekViewState extends State<WeekView> {
             onImport: _import,
             busy: viewModel.isImporting,
           ),
-          ViewState.ready => viewModel.isEmpty
-              ? ErrorState.importPrompt(
-                  onImport: _import,
-                  onRetry: viewModel.refresh,
-                  busy: viewModel.isImporting,
-                )
-              : _WeekContent(
-                  viewModel: viewModel,
-                  controller: _controllerFor(viewModel.selectedIndex),
-                ),
+          ViewState.ready =>
+            viewModel.isEmpty
+                ? ErrorState.importPrompt(
+                    onImport: _import,
+                    onRetry: viewModel.refresh,
+                    busy: viewModel.isImporting,
+                  )
+                : _WeekContent(
+                    viewModel: viewModel,
+                    controller: _controllerFor(viewModel.selectedIndex),
+                  ),
         },
       ),
     ),
@@ -153,10 +163,8 @@ class _WeekContent extends StatelessWidget {
             controller: controller,
             itemCount: viewModel.days.length,
             onPageChanged: viewModel.selectDay,
-            itemBuilder: (context, index) => _DayPage(
-              viewModel: viewModel,
-              index: index,
-            ),
+            itemBuilder: (context, index) =>
+                _DayPage(viewModel: viewModel, index: index),
           ),
         ),
       ],

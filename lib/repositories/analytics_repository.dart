@@ -57,6 +57,13 @@ abstract class AnalyticsRepository {
   /// The app had no menu and showed the import prompt.
   Future<void> logEmptyPromptShown();
 
+  /// A spreadsheet for a month that has already passed was chosen, and either
+  /// adopted anyway or abandoned.
+  Future<void> logStaleMenuImport({
+    required String month,
+    required bool adopted,
+  });
+
   // ---------------------------------------------------------- interaction
 
   /// A dish search ran.

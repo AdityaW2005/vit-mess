@@ -12,6 +12,7 @@ import '../../widgets/meal_card.dart';
 import '../../widgets/now_serving_card.dart';
 import '../../widgets/shimmer_loader.dart';
 import '../../widgets/staggered_entrance.dart';
+import '../../widgets/stale_menu_dialog.dart';
 
 /// The hero screen: what is being served right now, and how long is left.
 ///
@@ -39,7 +40,14 @@ class _HomeViewState extends State<HomeView> {
     final viewModel = context.read<HomeViewModel>();
     final messenger = ScaffoldMessenger.of(context);
 
-    final result = await viewModel.importMenu();
+    final result = await viewModel.importMenu(
+      confirmStaleMonth: (candidate) async {
+        // The picker ran on another screen; this one may be gone by now, and
+        // the safe answer is to leave the cached menu alone.
+        if (!mounted) return false;
+        return confirmStaleMenuImport(context, candidate);
+      },
+    );
     if (!mounted) return;
 
     final message = result.fold<String?>(
@@ -150,7 +158,6 @@ class _HomeContent extends StatelessWidget {
               ),
             ],
           ],
-
         ],
       ),
     );

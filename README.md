@@ -368,12 +368,17 @@ lib/
 │   └── service_locator.dart       # get_it registrations
 ├── models/                        # immutable, self-parsing value types
 ├── services/                      # HTTP, storage, file picking, Excel parsing,
-│                                  #   notifications
+│                                  #   notifications, links, build info
 ├── repositories/                  # interfaces + impls, caching & reminder policy
 ├── viewmodels/                    # BaseViewModel + one per screen
 ├── views/                         # home, week, search, settings, onboarding, shell
-└── widgets/                       # hero card, countdown, meal card, day strip, …
+└── widgets/                       # hero card, countdown, meal card, day strip,
+                                   #   developer sheet, stale-import dialog
 ```
+
+Android and iOS only. The desktop and web scaffolding `flutter create` generates
+is not in the repository; run `flutter create --platforms=web .` if it is ever
+wanted.
 
 ---
 
@@ -489,6 +494,62 @@ duplicate. Permission is requested at the moment the student turns reminders on
 — not as a cold-start surprise — and a decline is handled gracefully: the switch
 stays off and Settings explains why.
 
-Reminders are scheduled **inexactly** (`inexactAllowWhileIdle`), which means the
-app does not need Android's `SCHEDULE_EXACT_ALARM` permission. A reminder does
-not need second-level precision.
+Reminders use `exactAllowWhileIdle` and declare `SCHEDULE_EXACT_ALARM`: a nudge
+that the system batches half an hour late is worse than no nudge at all. When
+that permission is not granted the app falls back to `inexactAllowWhileIdle`
+rather than failing, and Settings says so. See "Play Store notes" below — the
+permission is restricted and has to be justified on the listing.
+
+---
+
+## Releasing to Play
+
+### 1. Signing
+
+The release build is signed from `android/key.properties`, which is **not** in
+version control. Create the keystore once and keep it safe — losing it means
+never being able to update the listing again:
+
+```bash
+keytool -genkey -v -keystore ~/messup-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+Then write `android/key.properties` (git-ignored, along with `*.jks`):
+
+```properties
+storePassword=<the password you just chose>
+keyPassword=<the same, unless you set a separate key password>
+keyAlias=upload
+storeFile=/Users/you/messup-upload.jks
+```
+
+Without that file the build still works but falls back to the **debug** key,
+which Play rejects. `flutter build appbundle --release` prints nothing about
+this, so check the file exists before uploading.
+
+### 2. Build the bundle
+
+```bash
+flutter build appbundle --release
+```
+
+The `.aab` lands in `build/app/outputs/bundle/release/`. Upload that, not an
+APK — Play splits it per device, so the actual download is a fraction of the
+bundle's size. Bump `version:` in `pubspec.yaml` for every upload; the build
+number after `+` must strictly increase.
+
+### 3. Play Store notes
+
+- **Exact alarms.** `SCHEDULE_EXACT_ALARM` is a restricted permission. Meal
+  reminders are a defensible use, but the listing has to declare it, and Google
+  may push back. The app already degrades to inexact scheduling when the
+  permission is refused, so dropping it from the manifest is a safe fallback if
+  the declaration is rejected.
+- **Data safety.** The app sends usage events to Google Analytics for Firebase,
+  so the Data safety form must declare app-activity and device-identifier
+  collection, and the listing needs a privacy policy URL.
+- **Application id.** `com.vitap.messmate` predates the rename to MessUp. It is
+  what `google-services.json` is registered against and it is permanent once
+  published, so changing it means a new Firebase Android app and a new listing.
+- **Store icon.** Play wants a 512×512 32-bit PNG — `assets/icon/app_icon.png`
+  is already exactly that.

@@ -8,6 +8,7 @@ import '../../core/utils/result.dart';
 import '../../viewmodels/search_view_model.dart';
 import '../../widgets/error_state.dart';
 import '../../widgets/meal_item_tile.dart';
+import '../../widgets/stale_menu_dialog.dart';
 
 /// Searches every dish in the month.
 ///
@@ -51,7 +52,14 @@ class _SearchViewState extends State<SearchView> {
     final viewModel = context.read<SearchViewModel>();
     final messenger = ScaffoldMessenger.of(context);
 
-    final result = await viewModel.importMenu();
+    final result = await viewModel.importMenu(
+      confirmStaleMonth: (candidate) async {
+        // The picker ran on another screen; this one may be gone by now, and
+        // the safe answer is to leave the cached menu alone.
+        if (!mounted) return false;
+        return confirmStaleMenuImport(context, candidate);
+      },
+    );
     if (!mounted) return;
 
     final message = result.fold<String?>(
@@ -217,9 +225,7 @@ class _ResultGroupCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Expanded(
-                      child: MealItemTile(item: hit.item),
-                    ),
+                    Expanded(child: MealItemTile(item: hit.item)),
                     const SizedBox(width: 12),
                     Padding(
                       padding: const EdgeInsets.only(top: 8),

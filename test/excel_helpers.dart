@@ -1,4 +1,17 @@
 import 'package:excel/excel.dart';
+import 'package:vit_mess/core/config/app_config.dart';
+import 'package:vit_mess/models/menu.dart';
+import 'package:vit_mess/models/mess.dart';
+
+/// A menu that carries nothing but the month it covers.
+///
+/// Enough for the month-comparison rules, which never look at the days.
+Menu menuForMonth(String month) => Menu(
+  schemaVersion: AppConfig.supportedSchemaVersion,
+  month: month,
+  campus: AppConfig.campus,
+  messes: const <Mess>[],
+);
 
 /// Builds a real `.xlsx` in memory from rows of plain strings.
 ///

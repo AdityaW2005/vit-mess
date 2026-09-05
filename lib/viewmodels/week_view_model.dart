@@ -164,7 +164,9 @@ class WeekViewModel extends BaseViewModel {
   ///
   /// Success arrives through the repository's change stream, which every
   /// screen listens to, so there is nothing to adopt here.
-  Future<Result<MenuSnapshot>> importMenu() async {
+  Future<Result<MenuSnapshot>> importMenu({
+    ConfirmStaleImport? confirmStaleMonth,
+  }) async {
     if (_isImporting) {
       return const Result<MenuSnapshot>.failure(
         'An import is already running.',
@@ -174,7 +176,9 @@ class WeekViewModel extends BaseViewModel {
     _isImporting = true;
     safeNotify();
 
-    final result = await _menuRepository.importMenu();
+    final result = await _menuRepository.importMenu(
+      confirmStaleMonth: confirmStaleMonth,
+    );
     if (isDisposed) return result;
 
     _isImporting = false;

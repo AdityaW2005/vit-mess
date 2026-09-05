@@ -127,6 +127,10 @@ class FakeFileImportService implements FileImportService {
 /// Analytics that goes nowhere: the repository under test must work whether
 /// or not Firebase is configured.
 class SilentAnalyticsService implements AnalyticsService {
+  /// Events that reached the SDK boundary, as `name` plus its parameters.
+  final List<(String, Map<String, Object>?)> events =
+      <(String, Map<String, Object>?)>[];
+
   @override
   bool get isAvailable => false;
 
@@ -137,7 +141,8 @@ class SilentAnalyticsService implements AnalyticsService {
   Future<void> setCollectionEnabled(bool enabled) async {}
 
   @override
-  Future<void> logEvent(String name, [Map<String, Object>? parameters]) async {}
+  Future<void> logEvent(String name, [Map<String, Object>? parameters]) async =>
+      events.add((name, parameters));
 
   @override
   Future<void> logScreenView(String screenName) async {}
@@ -154,9 +159,11 @@ void main() {
   late FakeLocalStorageService storage;
   late FakeFileImportService files;
 
+  late SilentAnalyticsService analyticsService;
+
   /// A repository wired to a published menu URL, so the network path runs.
   AnalyticsRepositoryImpl silentAnalytics() =>
-      AnalyticsRepositoryImpl(analytics: SilentAnalyticsService());
+      AnalyticsRepositoryImpl(analytics: analyticsService);
 
   MenuRepositoryImpl buildRepository() => MenuRepositoryImpl(
     api: api,
@@ -182,6 +189,7 @@ void main() {
   );
 
   setUp(() {
+    analyticsService = SilentAnalyticsService();
     api = FakeMenuApiService(body: documentFor('2026-08'));
     storage = FakeLocalStorageService();
     files = FakeFileImportService();
@@ -305,6 +313,127 @@ void main() {
 
       expect(result.isSuccess, isTrue);
       expect(result.valueOrNull!.source, MenuSource.network);
+    });
+  });
+
+  group('importMenu — a month that has already passed', () {
+    // The fixture workbook covers August 2026.
+    final duringAugust = DateTime(2026, 8, 20);
+    final inSeptember = DateTime(2026, 9, 5);
+    final inJuly = DateTime(2026, 7, 1);
+
+    test('asks first, naming both months', () async {
+      files.picked = workbook();
+      storage
+        ..document = documentFor('2026-09')
+        ..source = MenuSource.imported;
+      StaleMenuImport? asked;
+
+      await buildRepository().importMenu(
+        now: inSeptember,
+        confirmStaleMonth: (candidate) async {
+          asked = candidate;
+          return false;
+        },
+      );
+
+      expect(asked, isNotNull);
+      expect(asked!.month, '2026-08');
+      expect(asked!.currentMonth, '2026-09');
+      expect(asked!.replacesExistingMenu, isTrue);
+    });
+
+    test('declining leaves the cached menu exactly as it was', () async {
+      files.picked = workbook();
+      storage
+        ..document = documentFor('2026-09', dish: 'Keep me')
+        ..source = MenuSource.imported;
+
+      final result = await buildRepository().importMenu(
+        now: inSeptember,
+        confirmStaleMonth: (_) async => false,
+      );
+
+      // The whole point: a mis-tapped file costs nothing.
+      expect(result.isFailure, isTrue);
+      expect(result.failureOrNull!.kind, FailureKind.cancelled);
+      expect(storage.document, contains('Keep me'));
+      expect(storage.writeCount, 0);
+    });
+
+    test('accepting adopts it anyway', () async {
+      files.picked = workbook();
+      storage.document = documentFor('2026-09');
+
+      final result = await buildRepository().importMenu(
+        now: inSeptember,
+        confirmStaleMonth: (_) async => true,
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull!.menu.month, '2026-08');
+      expect(storage.document, contains('Carrot Idly'));
+    });
+
+    test('records both the warning and what was chosen', () async {
+      files.picked = workbook();
+
+      await buildRepository().importMenu(
+        now: inSeptember,
+        confirmStaleMonth: (_) async => false,
+      );
+
+      final stale = analyticsService.events
+          .where((event) => event.$1 == 'menu_import_stale')
+          .toList();
+      expect(stale, hasLength(1));
+      // Firebase rejects bool parameters, so they are coerced to strings.
+      expect(stale.single.$2, <String, Object>{
+        'month': '2026-08',
+        'adopted': 'false',
+      });
+    });
+
+    test('never asks about the month currently running', () async {
+      files.picked = workbook();
+      var asked = false;
+
+      final result = await buildRepository().importMenu(
+        now: duringAugust,
+        confirmStaleMonth: (_) async {
+          asked = true;
+          return false;
+        },
+      );
+
+      expect(asked, isFalse);
+      expect(result.isSuccess, isTrue);
+    });
+
+    test('never asks about next month, which arrives early', () async {
+      // The committee sends September's file before September starts.
+      files.picked = workbook();
+      var asked = false;
+
+      final result = await buildRepository().importMenu(
+        now: inJuly,
+        confirmStaleMonth: (_) async {
+          asked = true;
+          return false;
+        },
+      );
+
+      expect(asked, isFalse);
+      expect(result.isSuccess, isTrue);
+    });
+
+    test('imports without complaint when no one can be asked', () async {
+      // A caller with no way to show a dialog must not be unable to import.
+      files.picked = workbook();
+
+      final result = await buildRepository().importMenu(now: inSeptember);
+
+      expect(result.isSuccess, isTrue);
     });
   });
 

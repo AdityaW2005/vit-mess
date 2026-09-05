@@ -6,6 +6,11 @@ import '../models/menu.dart';
 /// Every method returns a [Result]; nothing here ever throws. The caching
 /// policy — what is cached, when it is written, and what the fallback order is
 /// — belongs to the implementation, not to callers.
+/// Asked before a spreadsheet for a month that has already passed replaces
+/// the cached menu. Returning `false` abandons the import and leaves the cache
+/// untouched.
+typedef ConfirmStaleImport = Future<bool> Function(StaleMenuImport candidate);
+
 abstract class MenuRepository {
   /// Emits whenever a new menu is adopted, from a refresh or an import.
   ///
@@ -33,7 +38,10 @@ abstract class MenuRepository {
   /// Lets the student pick an Excel workbook, converts it, and caches it.
   ///
   /// Returns a [FailureKind.cancelled] failure when the picker is dismissed.
-  Future<Result<MenuSnapshot>> importMenu();
+  Future<Result<MenuSnapshot>> importMenu({
+    ConfirmStaleImport? confirmStaleMonth,
+    DateTime? now,
+  });
 
   /// When the cached document was last fetched or imported.
   Future<DateTime?> lastUpdated();

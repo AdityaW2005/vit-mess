@@ -43,6 +43,13 @@ class Menu {
   /// True when [month] matches the month containing [now].
   bool coversMonthOf(DateTime now) => month == monthKeyOf(now);
 
+  /// True when the document's month ended before the one containing [now].
+  ///
+  /// `yyyy-MM` keys are zero-padded, so comparing them as strings is the same
+  /// as comparing them as dates. A *future* month is deliberately not stale:
+  /// next month's spreadsheet arrives before the month starts.
+  bool isBeforeMonthOf(DateTime now) => month.compareTo(monthKeyOf(now)) < 0;
+
   /// `yyyy-MM` key for [date].
   static String monthKeyOf(DateTime date) =>
       '${date.year.toString().padLeft(4, '0')}-'
@@ -219,4 +226,26 @@ class MenuSnapshot {
 
   @override
   String toString() => 'MenuSnapshot(${menu.month}, $source)';
+}
+
+/// A parsed workbook whose month has already passed.
+///
+/// Handed to the confirmation callback so the UI can name both months before
+/// a student replaces a menu they still need.
+@immutable
+class StaleMenuImport {
+  /// Creates the candidate.
+  const StaleMenuImport({required this.month, this.currentMonth});
+
+  /// The `yyyy-MM` the chosen spreadsheet covers.
+  final String month;
+
+  /// The `yyyy-MM` currently cached, or `null` when nothing is loaded.
+  final String? currentMonth;
+
+  /// True when accepting this import would discard a menu already in hand.
+  bool get replacesExistingMenu => currentMonth != null;
+
+  @override
+  String toString() => 'StaleMenuImport($month over $currentMonth)';
 }

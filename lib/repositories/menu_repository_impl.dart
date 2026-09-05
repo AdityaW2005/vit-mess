@@ -123,7 +123,10 @@ class MenuRepositoryImpl implements MenuRepository {
   }
 
   @override
-  Future<Result<MenuSnapshot>> importMenu() async {
+  Future<Result<MenuSnapshot>> importMenu({
+    ConfirmStaleImport? confirmStaleMonth,
+    DateTime? now,
+  }) async {
     PickedWorkbook? workbook;
     try {
       workbook = await _files.pickMenuWorkbook();
@@ -164,6 +167,20 @@ class MenuRepositoryImpl implements MenuRepository {
       );
     }
 
+    // A spreadsheet for a month that has already passed is almost always the
+    // wrong file. Adopting it would overwrite a menu the student still needs
+    // and silently clear every reminder, so it is confirmed first — and the
+    // cache is left alone until they say yes.
+    if (menu.isBeforeMonthOf(now ?? DateTime.now())) {
+      final accepted = await _confirmStale(menu, confirmStaleMonth);
+      if (!accepted) {
+        return const Result<MenuSnapshot>.failure(
+          Strings.failureStaleDeclined,
+          kind: FailureKind.cancelled,
+        );
+      }
+    }
+
     // The workbook is normalised to the JSON contract before caching, so the
     // cache format never depends on where a menu came from.
     unawaited(_analytics.logMenuImported(menu));
@@ -200,6 +217,25 @@ class MenuRepositoryImpl implements MenuRepository {
   }
 
   // ------------------------------------------------------------- internals
+
+  /// Asks the caller whether an out-of-date [menu] should still be adopted.
+  ///
+  /// With no callback wired the import proceeds, so a caller that has no way
+  /// to ask is never left unable to import at all.
+  Future<bool> _confirmStale(Menu menu, ConfirmStaleImport? confirm) async {
+    if (confirm == null) return true;
+
+    final accepted = await confirm(
+      StaleMenuImport(
+        month: menu.month,
+        currentMonth: _readCachedSnapshot()?.menu.month,
+      ),
+    );
+    unawaited(
+      _analytics.logStaleMenuImport(month: menu.month, adopted: accepted),
+    );
+    return accepted;
+  }
 
   /// Caches [document], announces the new [menu], and returns it.
   ///
