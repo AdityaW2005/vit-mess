@@ -61,6 +61,13 @@ class AnalyticsEvents {
 
   /// Analytics collection itself was switched on or off.
   static const String analyticsToggled = 'analytics_toggled';
+
+  // ------------------------------------------------------------- developer
+  /// The about-the-developer sheet was opened from the Settings footer.
+  static const String developerSheetOpened = 'developer_sheet_opened';
+
+  /// One of the sheet's links was followed.
+  static const String developerLinkOpened = 'developer_link_opened';
 }
 
 /// Parameter keys used by [AnalyticsEvents].
@@ -114,6 +121,9 @@ class AnalyticsParams {
 
   /// True when a meal window was reset rather than set.
   static const String isReset = 'is_reset';
+
+  /// Which developer link was followed: `github`, `linkedin` or `email`.
+  static const String link = 'link';
 }
 
 /// Screen names reported with [AnalyticsEvents.screenView].

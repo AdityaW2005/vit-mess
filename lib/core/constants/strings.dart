@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../../models/app_settings.dart';
+import '../../models/developer.dart';
 import '../../models/meal.dart';
 import '../../models/menu.dart';
 
@@ -168,6 +169,32 @@ class Strings {
   static const String failureUnknown =
       'Something went wrong loading the menu. Please try again.';
 
+  // ------------------------------------------------------------- developer
+  /// The Settings footer. The name itself is the tappable part.
+  static const String developerCreatedBy = 'Created by';
+
+  /// Greeting above the name in the about sheet.
+  static const String developerGreeting = 'Hey there';
+
+  /// Button labels, in the order the sheet lays them out.
+  static const String developerGithubLabel = 'Check my works';
+  static const String developerLinkedInLabel = 'Connect with me';
+  static const String developerEmailLabel = 'Copy my email';
+
+  /// The build version, shown under the footer byline.
+  static String appVersionLabel(String version) => 'v$version';
+
+  /// Confirmations.
+  static const String developerEmailCopied = 'Email copied to clipboard';
+  static const String developerLinkFailed = 'Could not open that link.';
+
+  /// The label for one of the sheet's buttons.
+  static String developerLinkLabel(DeveloperLinkKind kind) => switch (kind) {
+    DeveloperLinkKind.github => developerGithubLabel,
+    DeveloperLinkKind.linkedin => developerLinkedInLabel,
+    DeveloperLinkKind.email => developerEmailLabel,
+  };
+
   // ---------------------------------------------------------- a11y labels
   static const String a11yRefresh = 'Refresh the menu';
   static const String a11yExpandMeal = 'Expand meal';
@@ -178,6 +205,7 @@ class Strings {
       'Paired alternative: one of these is served depending on your plan';
   static const String a11ySelectDay = 'Select day';
   static const String a11ySelectTheme = 'Select theme';
+  static const String a11yAboutDeveloper = 'About the developer';
 
   // ------------------------------------------------------------ variants
   static const String variantVeg = 'Veg';

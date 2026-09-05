@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart' show NavigatorObserver;
 import '../core/constants/analytics_events.dart';
 import '../core/utils/result.dart';
 import '../models/app_settings.dart';
+import '../models/developer.dart';
 import '../models/meal.dart';
 import '../models/meal_status.dart';
 import '../models/menu.dart';
@@ -171,6 +172,18 @@ class AnalyticsRepositoryImpl implements AnalyticsRepository {
   @override
   Future<void> logRemindersBlocked() =>
       _log(AnalyticsEvents.remindersBlocked);
+
+  // ------------------------------------------------------------- developer
+
+  @override
+  Future<void> logDeveloperSheetOpened() =>
+      _log(AnalyticsEvents.developerSheetOpened);
+
+  @override
+  Future<void> logDeveloperLinkOpened(DeveloperLinkKind kind) =>
+      _log(AnalyticsEvents.developerLinkOpened, <String, Object>{
+        AnalyticsParams.link: kind.id,
+      });
 
   // ------------------------------------------------------------ internals
 

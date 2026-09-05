@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart' show NavigatorObserver;
 
 import '../core/utils/result.dart';
 import '../models/app_settings.dart';
+import '../models/developer.dart';
 import '../models/meal.dart';
 import '../models/meal_status.dart';
 import '../models/menu.dart';
@@ -92,4 +93,12 @@ abstract class AnalyticsRepository {
 
   /// The platform refused notification permission.
   Future<void> logRemindersBlocked();
+
+  // ------------------------------------------------------------- developer
+
+  /// The about-the-developer sheet was opened.
+  Future<void> logDeveloperSheetOpened();
+
+  /// One of the sheet's links was followed.
+  Future<void> logDeveloperLinkOpened(DeveloperLinkKind kind);
 }

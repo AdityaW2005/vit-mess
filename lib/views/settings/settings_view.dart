@@ -10,6 +10,7 @@ import '../../core/utils/result.dart';
 import '../../models/app_settings.dart';
 import '../../models/meal.dart';
 import '../../viewmodels/settings_view_model.dart';
+import '../../widgets/developer_sheet.dart';
 
 /// Tier, timings, reminders and menu data.
 class SettingsView extends StatefulWidget {
@@ -189,7 +190,6 @@ class _SettingsViewState extends State<SettingsView> {
                       icon: Icons.timer_off_outlined,
                       message: Strings.settingsExactAlarmsOff,
                     ),
-
                 ],
               ),
             ),
@@ -246,11 +246,86 @@ class _SettingsViewState extends State<SettingsView> {
                 ],
               ),
             ),
+
+            _DeveloperFooter(version: viewModel.appVersion),
           ],
         ),
       ),
     ),
   );
+}
+
+/// The credit line that closes the settings list.
+///
+/// Only the name is tappable: the rest is a caption, and making the whole row
+/// a target would leave a student wondering what they had just pressed.
+class _DeveloperFooter extends StatelessWidget {
+  const _DeveloperFooter({this.version});
+
+  /// The running build's version, or `null` before the platform has reported
+  /// it — in which case the line is left out rather than showing a guess.
+  final String? version;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.mess;
+    final textTheme = Theme.of(context).textTheme;
+    final version = this.version;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 36, bottom: 8),
+      child: Column(
+        children: <Widget>[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                Strings.developerCreatedBy,
+                style: textTheme.bodySmall?.copyWith(color: colors.textMuted),
+              ),
+              Semantics(
+                button: true,
+                label: Strings.a11yAboutDeveloper,
+                excludeSemantics: true,
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => showDeveloperSheet(context),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        AppConfig.developerName,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colors.accent,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline,
+                          decorationColor: colors.accent.withValues(
+                            alpha: 0.45,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (version != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(
+              Strings.appVersionLabel(version),
+              style: textTheme.labelSmall?.copyWith(color: colors.textMuted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 /// Whether a menu is loaded, and what it covers.

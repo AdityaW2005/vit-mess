@@ -2,6 +2,10 @@ import 'package:get_it/get_it.dart';
 
 import '../repositories/analytics_repository.dart';
 import '../repositories/analytics_repository_impl.dart';
+import '../repositories/app_info_repository.dart';
+import '../repositories/app_info_repository_impl.dart';
+import '../repositories/link_repository.dart';
+import '../repositories/link_repository_impl.dart';
 import '../repositories/menu_repository.dart';
 import '../repositories/menu_repository_impl.dart';
 import '../repositories/reminder_repository.dart';
@@ -10,6 +14,8 @@ import '../repositories/settings_repository.dart';
 import '../repositories/settings_repository_impl.dart';
 import '../services/analytics_service.dart';
 import '../services/file_import_service.dart';
+import '../services/app_info_service.dart';
+import '../services/link_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/menu_api_service.dart';
 import '../services/notification_service.dart';
@@ -35,7 +41,9 @@ Future<void> setupServiceLocator() async {
     ..registerLazySingleton<MenuApiService>(MenuApiService.new)
     ..registerLazySingleton<FileImportService>(FileImportService.new)
     ..registerLazySingleton<NotificationService>(NotificationService.new)
-    ..registerLazySingleton<AnalyticsService>(AnalyticsService.new);
+    ..registerLazySingleton<AnalyticsService>(AnalyticsService.new)
+    ..registerLazySingleton<LinkService>(LinkService.new)
+    ..registerLazySingleton<AppInfoService>(AppInfoService.new);
 
   // --------------------------------------------------------- repositories
   locator
@@ -57,6 +65,12 @@ Future<void> setupServiceLocator() async {
     )
     ..registerLazySingleton<AnalyticsRepository>(
       () => AnalyticsRepositoryImpl(analytics: locator<AnalyticsService>()),
+    )
+    ..registerLazySingleton<LinkRepository>(
+      () => LinkRepositoryImpl(links: locator<LinkService>()),
+    )
+    ..registerLazySingleton<AppInfoRepository>(
+      () => AppInfoRepositoryImpl(info: locator<AppInfoService>()),
     );
 
   // Load persisted settings before the first frame so onboarding is decided
@@ -102,6 +116,8 @@ Future<void> setupServiceLocator() async {
         settingsRepository: locator<SettingsRepository>(),
         reminderRepository: locator<ReminderRepository>(),
         analyticsRepository: locator<AnalyticsRepository>(),
+        linkRepository: locator<LinkRepository>(),
+        appInfoRepository: locator<AppInfoRepository>(),
       ),
     );
 }

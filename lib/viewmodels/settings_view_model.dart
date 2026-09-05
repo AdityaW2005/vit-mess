@@ -7,9 +7,12 @@ import '../core/constants/analytics_events.dart';
 import '../core/config/meal_timings.dart';
 import '../core/utils/result.dart';
 import '../models/app_settings.dart';
+import '../models/developer.dart';
 import '../models/meal.dart';
 import '../models/menu.dart';
 import '../repositories/analytics_repository.dart';
+import '../repositories/app_info_repository.dart';
+import '../repositories/link_repository.dart';
 import '../repositories/menu_repository.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/settings_repository.dart';
@@ -50,16 +53,22 @@ class SettingsViewModel extends BaseViewModel {
     required SettingsRepository settingsRepository,
     required ReminderRepository reminderRepository,
     required AnalyticsRepository analyticsRepository,
+    required LinkRepository linkRepository,
+    required AppInfoRepository appInfoRepository,
   }) : _menuRepository = menuRepository,
        _settingsRepository = settingsRepository,
        _reminderRepository = reminderRepository,
        _analytics = analyticsRepository,
+       _links = linkRepository,
+       _appInfo = appInfoRepository,
        _settings = settingsRepository.current;
 
   final MenuRepository _menuRepository;
   final SettingsRepository _settingsRepository;
   final ReminderRepository _reminderRepository;
   final AnalyticsRepository _analytics;
+  final LinkRepository _links;
+  final AppInfoRepository _appInfo;
 
   StreamSubscription<AppSettings>? _settingsSubscription;
   StreamSubscription<MenuSnapshot>? _menuSubscription;
@@ -71,6 +80,7 @@ class SettingsViewModel extends BaseViewModel {
   bool _isImporting = false;
   bool _notificationsBlocked = false;
   ReminderStatus? _reminderStatus;
+  String? _appVersion;
 
   // ------------------------------------------------------------- getters
 
@@ -110,6 +120,12 @@ class SettingsViewModel extends BaseViewModel {
 
   /// True while the file picker flow is running.
   bool get isImporting => _isImporting;
+
+  /// The running build's version, once the platform has reported it.
+  ///
+  /// `null` until then, and on a platform that cannot say — the footer leaves
+  /// the line out rather than showing a guess.
+  String? get appVersion => _appVersion;
 
   /// What the platform will currently allow reminders to do, once known.
   ReminderStatus? get reminderStatus => _reminderStatus;
@@ -185,6 +201,7 @@ class SettingsViewModel extends BaseViewModel {
     if (isDisposed) return;
 
     unawaited(refreshReminderStatus());
+    unawaited(_loadAppVersion());
 
     result.fold(
       onSuccess: (snapshot) {
@@ -209,6 +226,15 @@ class SettingsViewModel extends BaseViewModel {
   /// Called when the first-run tier picker appears.
   void onOnboardingShown() =>
       unawaited(_analytics.logScreen(AnalyticsScreens.onboarding));
+
+  /// Reads the build version for the footer. Failing is not worth reporting:
+  /// the line simply does not appear.
+  Future<void> _loadAppVersion() async {
+    final version = await _appInfo.version();
+    if (isDisposed || version == null) return;
+    _appVersion = version;
+    safeNotify();
+  }
 
   /// Re-reads what the platform will allow, so the warnings stay truthful
   /// after a trip to system settings.
@@ -333,6 +359,18 @@ class SettingsViewModel extends BaseViewModel {
       ),
     );
     return remindersEnabled;
+  }
+
+  /// Called when the about-the-developer sheet opens.
+  void onDeveloperSheetShown() =>
+      unawaited(_analytics.logDeveloperSheetOpened());
+
+  /// Opens one of the developer's links, or copies it when it is an address.
+  ///
+  /// Returns `true` when the target was copied, so the view can confirm it.
+  Future<Result<bool>> followDeveloperLink(DeveloperLink link) async {
+    unawaited(_analytics.logDeveloperLinkOpened(link.kind));
+    return _links.follow(link);
   }
 
   /// Fetches the document immediately, bypassing the cache.

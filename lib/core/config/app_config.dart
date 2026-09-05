@@ -67,6 +67,29 @@ class AppConfig {
   /// database location. VIT-AP is in India, so this is the sensible fallback.
   static const String fallbackTimeZone = 'Asia/Kolkata';
 
+  // ------------------------------------------------------------- developer
+  /// Who built the app. Shown in the Settings footer.
+  static const String developerName = 'W Aditya';
+
+  /// One-line description under the name in the about sheet.
+  static const String developerRole = 'Mobile Application Developer';
+
+  /// The initials drawn in the about sheet's avatar.
+  static const String developerInitials = 'W';
+
+  /// Where the about sheet's buttons point.
+  ///
+  /// Leave any of these blank and its button simply does not appear, so the
+  /// sheet is never showing a link that goes nowhere. Filling one in is the
+  /// only change needed to light it up — nothing else reads these.
+  static const String developerGithubUrl = 'https://github.com/AdityaW2005';
+  static const String developerLinkedInUrl =
+      'https://www.linkedin.com/in/w-aditya-ba5357293/';
+
+  /// Contact address. Copied to the clipboard rather than opened, so it works
+  /// on a device with no mail client configured.
+  static const String developerEmail = 'adhiw2005@gmail.com';
+
   // --------------------------------------------------------- storage keys
   static const String keyMenuDocument = 'messmate.menu.document.v1';
   static const String keyMenuLastUpdated = 'messmate.menu.lastUpdated.v1';
