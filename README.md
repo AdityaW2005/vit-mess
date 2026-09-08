@@ -1,180 +1,125 @@
 # MessUp
 
-The VIT-AP hostel mess menu, answered in under two seconds.
+**The VIT-AP hostel mess menu, answered in under two seconds.**
 
 Open the app and the first thing on screen is what is being served right now
-and how long you have — a live countdown, the full item list, no taps. Between
+and how long you have — a live countdown, the full dish list, no taps. Between
 meals it flips to the next one. After dinner it rolls over to tomorrow's
-breakfast. Everything else (browsing the month, searching for a dish, settings)
-is secondary navigation.
+breakfast. Browsing the month, searching for a dish and settings are all
+secondary; the hero answer is the product.
+
+There is no server. The mess committee publishes a spreadsheet each month, a
+student imports it once, and everything after that works offline.
 
 ---
 
-## Running it
+## Contents
 
-```bash
-flutter pub get
-```
-
-```bash
-flutter run
-```
-
-Requires Flutter **3.41+** on the stable channel (Dart 3.11, sound null safety).
-Targets Android and iOS.
-
-Platform minimums, already configured:
-
-| Platform | Minimum | Why |
-| --- | --- | --- |
-| Android | `flutter.minSdkVersion` with core library desugaring enabled | `flutter_local_notifications` needs `java.time` backported |
-| iOS | 15.0 | `firebase_core` / `firebase_analytics` require it |
-
-### Tests
-
-```bash
-flutter test
-```
-
-128 tests covering the pure time logic, model parsing (including malformed
-documents), Excel workbook parsing in all three supported layouts, dish
-classification, the repository's cache-fallback policy, and rendering of the
-3-item / 13-item extremes and paired veg/non-veg tiles.
-
-Drop a real published menu at `test/fixtures/vitap_august_2026.xlsx` to also
-run `real_workbook_test.dart` against the genuine article; without it those
-checks skip and the synthetic rotation fixture covers the same format.
-
-```bash
-flutter analyze
-```
-
-Clean under the default `flutter_lints` set.
+- [What it does](#what-it-does)
+- [How a menu gets in](#how-a-menu-gets-in)
+- [Meal timings](#meal-timings)
+- [Dish highlighting](#dish-highlighting)
+- [Reminders](#reminders)
+- [Architecture](#architecture)
+- [Data flow](#data-flow)
+- [Time logic](#time-logic)
+- [Storage and offline behaviour](#storage-and-offline-behaviour)
+- [Analytics](#analytics)
+- [Project layout](#project-layout)
+- [Running it](#running-it)
 
 ---
 
-## Where to set the menu URL
+## What it does
 
-**`lib/core/config/app_config.dart` → `AppConfig.menuUrl`.**
+Four tabs, in the order a hungry student needs them.
 
-```dart
-static const String menuUrl =
-    'https://raw.githubusercontent.com/vitap-messmate/menu-data/main/menu.json';
-```
+| Tab | Answers |
+| --- | --- |
+| **Today** | What is being served *now*, how long is left, and what is still to come today. A saffron hero card counts down to closing time while a counter is open, and to opening time when it is not. |
+| **Week** | The whole month, one day at a time. A horizontal day strip scrolls to today; each meal is a collapsible card. |
+| **Search** | Every dish in the month, grouped by date with a "TODAY / IN 2 DAYS / IN 5 DAYS" heading, so "when is paneer next?" takes one query. |
+| **Settings** | Mess plan, serving-window overrides, per-meal reminders, menu import, light/dark, about. |
 
-That constant is the only place the network source is named. It currently holds
-a **placeholder** GitHub raw URL — point it at your own repository before
-shipping. Everything else about the fetch (timeout, cache keys, schema version)
-lives in the same file.
+First launch shows a one-screen onboarding that picks the subscription tier
+(**Veg & Non-Veg** or **Special**) and offers reminders. With no menu loaded,
+every screen shows a centred import prompt rather than an empty shell.
 
-While `menuUrl` still equals `AppConfig.placeholderMenuUrl`, the app treats
-downloading as unavailable: it never fires a request that is guaranteed to
-fail, Settings hides **Refresh now** and explains that the spreadsheet is the
-only source, and pull-to-refresh is a no-op. Replace the constant and all of
-that turns on by itself — `AppConfig.isRemoteConfigured` derives from it, so
-there is no second flag to remember.
+## How a menu gets in
 
----
+Importing a spreadsheet is the primary path — the one students actually use.
+Settings → **Menu data** → *Import a menu spreadsheet* opens the system file
+picker for an `.xlsx` or `.xlsm` workbook.
 
-## Getting a menu into the app
+The parser recognises **three layouts**, chosen per worksheet by inspecting the
+header row, because real mess menus arrive in all of them.
 
-There is **no bundled menu**. On a fresh install the app tries the remote
-document once, and if that fails every screen shows a centred **"Import your
-mess menu"** prompt whose primary action opens the file picker. Once a menu is
-imported or downloaded it is cached, and the app works offline from then on.
-
-Two ways a menu arrives:
-
-1. **Import an Excel workbook (primary in practice).** Tap *Choose a
-   spreadsheet* on the empty state, or Settings → *Import a menu spreadsheet*.
-   Accepts `.xlsx` / `.xlsm`. The workbook is converted to the internal JSON
-   contract and cached, so the cache format never depends on where a menu came
-   from.
-2. **Remote JSON.** Commit `menu.json` to the menu-data repository on `main`
-   and every device picks it up on next launch. See
-   [Where to set the menu URL](#where-to-set-the-menu-url).
-
-### The spreadsheet format
-
-Each **worksheet is one subscription tier** — the sheet name becomes the tier
-name (`Veg & Non-Veg`, `Special`). Three layouts are recognised, chosen per
-sheet by inspecting the header row, so a menu can be kept in whichever shape
-the mess office already uses.
-
-**Rotation** — what the VIT-AP mess office actually publishes. A `Day` column
-carries the weekday plus the dates of the month that repeat it (usually a
-merged cell spanning the block), and each meal column lists one dish per row
-underneath:
+**Rotation** — the shape the VIT-AP mess office publishes. A `Day` column holds
+a weekday and the dates of the month that repeat it; each meal column lists one
+dish per row underneath:
 
 | Day | Breakfast | Lunch | Snacks | Dinner |
-|-----|-----------|-------|--------|--------|
-| Sat<br>1, 15, 29 | Masala Ghee Roast Dosa | Carrot & Cucumber Salad | Punugulu 10 Pcs | Beetroot & Carrot Salad |
-| | Vada Pav | Pulka | Groundnut Chutney | Roti |
-| | Groundnut Chutney | White Rice | Ginger Tea/Coffee/Milk | White Rice |
-| Sun<br>2, 16, 30 | Shavige Bath | … | … | … |
-
-The block repeats onto every date it names, so one fortnight of rows fills the
-whole month.
+| --- | --- | --- | --- | --- |
+| Sat<br>1, 15, 29 | Masala Dosa | Carrot Salad | Punugulu | Roti |
+| | Vada Pav | Pulka | Chutney | White Rice |
 
 **Grid** — one row per day, keyed by an explicit date:
 
-| Date | Breakfast | Lunch | Snacks | Dinner |
-|------|-----------|-------|--------|--------|
-| 2026-08-17 | Carrot Idly, Medhu Vada | Steamed Rice, Chicken Curry (non-veg), Paneer (veg) | Masala Tea | Chapathi |
+| Date | Breakfast | Lunch |
+| --- | --- | --- |
+| 2026-08-17 | Carrot Idly, Vada | Rice, Chicken Curry (non-veg) |
 
 **Long** — one row per dish:
 
 | Date | Meal | Item | Variant |
-|------|------|------|---------|
-| 2026-08-17 | Breakfast | Carrot Idly | |
+| --- | --- | --- | --- |
 | 2026-08-17 | Lunch | Chicken Curry | nonveg |
-| 2026-08-17 | Lunch | Paneer Butter Masala | veg |
 
-### Which month a rotation sheet covers
+Each **worksheet is one subscription tier** and the sheet name becomes the tier
+name; a `Mess` / `Plan` / `Tier` column overrides that when present.
 
-A rotation sheet names its month in the title above the header
-("VEG & NON-VEG MESS MENU FOR THE MONTH OF **AUGUST**") but usually omits the
-year. The year is recovered from the sheet's own data: the only candidate year
-that makes the weekday labels agree with the day numbers is the right one —
-1, 15 and 29 August fall on a Saturday in 2026 and in no other nearby year. If
-the title carries a year it is used directly; if it names no month at all, the
-current month is assumed.
+### Recovering the year
+
+A rotation sheet titles itself `AUGUST` with no year. The parser recovers it by
+**weekday alignment**: only one nearby year puts the 1st, 15th and 29th on a
+Saturday. Candidate years around today are tested and the one that fits wins.
 
 ### What the parser tolerates
 
-So a hand-kept sheet does not need cleaning up first:
+Real spreadsheets are messy, so the parser absorbs rather than rejects:
 
-- **Merged day cells** spanning a block of rows.
-- **Dates** as real Excel date cells, `2026-08-17`, `17/08/2026` or `17-08-26`.
-- **Title rows** above the header — the header is searched for, not assumed to
-  be row 1.
-- **Blank Date / Meal cells**, which carry down from the row above.
-- **Loose meal headings**: `BREAKFAST `, `Evening Snacks`, `Supper`, `Tea`, `BF`.
-- **Several dishes in one cell**, separated by newlines, commas or semicolons.
-- **Slash choices are left alone.** `Tea/Coffee/Milk` and `Chicken Dum
-  Biryani/Vegetable Dum Biryani` stay one line, because a slash means "one of
-  these" — splitting on it would invent dishes.
-- **Veg / non-veg markers** written inline as `Telangana Chicken Curry
-  (Non-Veg)` or in a dedicated `Variant` column. On the **Veg & Non-Veg** plan,
-  two marked dishes on adjacent rows of the same meal are folded into a single
-  "or" tile — the mess serves one or the other. On the **Special** plan both
-  are served, so they stay as two separate rows.
-- **Trailing prose** — a `MESS SERVICE INSTRUCTIONS` block after the last day
-  is detected and excluded, as is anything following it.
-- **Optional columns**: `Mess` / `Plan` / `Tier` (overrides the sheet name and
-  lets one sheet hold both tiers), and `Start` / `End` to override that meal's
-  serving window.
-- **Unreadable sheets** are skipped rather than failing the whole import, so a
-  "Notes" tab alongside the menu is harmless.
+- merged day cells, blank spacer rows, and title rows above the header
+- loose headings — `BREAKFAST `, `Evening Snacks`, `Supper`
+- dates as `2026-08-17`, `17/08/2026`, or a native Excel date cell
+- several dishes in one cell, split on newlines, semicolons or commas —
+  deliberately **not** on `/`, so `Tea/Coffee/Milk` stays one item
+- a blank date carried down from the row above
+- service instructions and footer notes, which are dropped
 
-A workbook with no `Day`/`Date` column, or no recognisable meal columns, is
-rejected with a plain-language message rather than importing an empty menu.
+A workbook that yields no menu rows at all is rejected wholesale with a plain
+explanation, and the existing menu is left untouched.
 
-### Meal timings
+### Importing an out-of-date month
+
+A spreadsheet for a month that has already passed is almost always the wrong
+file — adopting it would overwrite a menu still in use and silently clear every
+reminder. So the parse happens first, and then the app asks:
+
+> **This menu has expired**
+> This spreadsheet is for August 2026, which has already passed. Importing it
+> replaces your September 2026 menu and clears any meal reminders.
+> **Keep current menu** · Import anyway
+
+Nothing is written until the answer is yes; dismissing the dialog counts as no.
+Only *past* months prompt — next month's file, which arrives before the month
+starts, imports silently. If it is imported anyway, the Settings status card
+turns amber (*Menu has expired*) instead of showing a green tick.
+
+## Meal timings
 
 Serving windows are **not** read from the spreadsheet. They come from
 `MealType`'s canonical windows in `lib/models/meal.dart`, matching the mess
-office's published timings board:
+notice board:
 
 | Meal | Window |
 | --- | --- |
@@ -184,78 +129,175 @@ office's published timings board:
 | Snacks | 16:30 – 18:15 |
 | Dinner | 19:15 – 21:00 |
 
-Breakfast is the one slot that runs to two clocks, so `MealType.startOn(date)`
-/ `endOn(date)` resolve it per weekday and the Excel parser bakes the right
-window into each day. Settings notes the Sunday/Monday difference under
-Breakfast; a student override replaces both and the note disappears.
+Breakfast is the one slot that runs two clocks, so `MealType.startOn(date)` and
+`endOn(date)` are date-aware. Any window can be overridden per meal in Settings;
+an override replaces both weekday variants and is marked **Custom** with a
+one-tap reset.
 
-Students can override any of them in Settings → *Meal timings* without touching
-the data. Overrides live in `MealTimings`
-(`lib/core/config/meal_timings.dart`) and are applied on top of whatever the
-document says. A `Start` / `End` column in a long-layout sheet overrides the
-canonical window for that meal; a student override still wins over both.
+## Dish highlighting
 
-### Dish highlighting
+A mess menu is mostly staples — rice, dal, chutney, tea. What a student scans
+for is the dish that decides the meal. `classifyDishName` marks those and
+leaves everything else quiet, so a highlight actually means something:
 
-A mess menu is mostly staples — rice, dal, chutney, tea. What a student
-actually scans for is the one dish that decides the meal, so only that dish is
-lifted:
+- **green** — marquee vegetarian: paneer, mushroom, soya and friends
+- **red** — non-vegetarian
+- **neutral** — everything else
 
-| Dish | Marker |
-| --- | --- |
-| Non-veg (chicken, mutton, fish, prawn, egg…) | **Red** mark, red name, tinted strip |
-| Marquee veg (paneer, mushroom, soya, kofta, chole, rajma, manchurian…) | **Green** mark, green name, tinted strip |
-| Everyday staples (rice, sambar, curd, tea…) | Muted neutral mark |
+Matching is word-boundary aware, so `Eggless Cake` is not caught by `egg` and
+`Beans Poriyal` is not caught by `bean`. A dish naming both — `Chicken Dum
+Biryani/Paneer Dum Biryani` — reads as non-veg, because that is what is served
+to whoever takes it. An explicit veg/non-veg marker in the sheet always wins
+over the guess.
 
-Classification lives in `lib/core/utils/dish_classifier.dart` as a pure,
-unit-tested function. An explicit `(Veg)` / `(Non-Veg)` marker in the sheet
-always wins; otherwise the dish is judged from its name, so a board that never
-tags anything still gets correct marks. Matching is word-boundary aware —
-"Eggless Cake" and "Beans Poriyal" are not mistaken for egg and beans.
+On the **Veg & Non-Veg** plan an adjacent veg/non-veg pair is one either/or
+choice and renders as a single tile. On **Special**, where both are served, they
+stay separate rows.
 
-Both tiers use the same rules, and the highlight stays deliberately faint (a
-9% tint and a 3px rule) so the now-serving card remains the only saturated
-element on the screen.
+## Reminders
 
-### Appearance
+A local notification fires 15 minutes before each enabled meal opens, carrying
+the meal name and its first three dishes. Seven days are scheduled ahead —
+28 alarms at four meals a day — and the whole schedule is **rebuilt from
+scratch** on every tier change, timing change, menu change and app resume, so it
+can never drift or duplicate.
 
-Both themes ship complete and are switchable in-app: Settings → **Appearance**
-offers *System* / *Light* / *Dark*. The choice is persisted with the rest of the
-settings and applies immediately, without a restart.
+Reminders use `exactAllowWhileIdle`: a nudge the system batches half an hour
+late is worse than no nudge. When Android withholds that permission the app
+falls back to inexact scheduling rather than failing, and Settings says so —
+separately for "notifications are switched off entirely" and "these may arrive
+late".
 
-The palette is defined once as a `MessColors` `ThemeExtension`
-(`lib/core/theme/app_theme.dart`) with a light and a dark instance, so every
-semantic role — canvas, surface, hairline, accent, the veg/non-veg markers, the
-now-serving gradient — has a value in both. Widgets read `context.mess` and
-never hardcode a colour, which is what keeps the two themes in step.
+Permission is requested at the moment reminders are switched on, never as a
+cold-start surprise, and a decline leaves the switch off with an explanation.
 
-The design is dark-first (deep charcoal-brown, saffron accent); the light theme
-is a warm off-white with a deeper amber accent so the same saturation hierarchy
-survives — the now-serving card stays the only saturated element in both.
+## Architecture
 
-### JSON contract (remote + cache)
+Strict **MVVM**, one direction only:
+
+```
+View  ──watches──▶  ViewModel  ──calls──▶  Repository (interface)
+                                                 │
+                                                 ▼
+                                            Service (platform)
+```
+
+- **Views** are `StatelessWidget`/`StatefulWidget` and hold no logic beyond
+  layout and gesture wiring. They read state through `Consumer`/`context.read`.
+- **ViewModels** extend `BaseViewModel` (a `ChangeNotifier`) and import only
+  `package:flutter/foundation.dart` — never a widget, a `BuildContext`, or a
+  service. They depend on repository *interfaces*, which is what makes them
+  testable with fakes.
+- **Repositories** are interfaces with one implementation each. They own
+  policy: caching order, reminder scheduling rules, analytics consent.
+- **Services** are the only files that touch a plugin or the platform — HTTP,
+  shared preferences, the file picker, the Excel decoder, notifications,
+  `url_launcher`, package info.
+- **Models** are immutable, self-parsing value types with `==`/`hashCode`.
+
+`provider` supplies ViewModels to the tree; `get_it` owns construction in a
+single `lib/core/service_locator.dart`. Nothing else registers dependencies.
+
+Every failure crosses a layer boundary as a sealed `Result<T>` — `Success` or
+`Failure` carrying a `FailureKind` (`network`, `parse`, `storage`, `cancelled`,
+`permission`, `empty`, `unsupported`, `unknown`). The UI picks its illustration
+and its action from the kind; no exception escapes a repository.
+
+### Layer responsibilities
+
+| Layer | Knows about | Never knows about |
+| --- | --- | --- |
+| View | its ViewModel, theme, strings | repositories, services, plugins |
+| ViewModel | repository interfaces | widgets, `BuildContext`, plugins |
+| Repository | services, models, policy | Flutter widgets |
+| Service | one plugin or platform API | the rest of the app |
+
+## Data flow
+
+An import, end to end:
+
+1. **View** — Settings calls `viewModel.importMenu(confirmStaleMonth: …)`,
+   passing a callback that can show a dialog.
+2. **ViewModel** — flips `isImporting`, notifies, delegates to the repository.
+3. **Repository** — asks `FileImportService` for a workbook, hands the bytes to
+   `ExcelMenuParser`, checks the month, invokes the confirmation callback if it
+   has passed, then normalises the result to the JSON contract and writes it
+   through `LocalStorageService`.
+4. **Broadcast** — the repository emits the new `MenuSnapshot` on a broadcast
+   stream. Home, Week and Search are subscribed, so all four tabs update without
+   any of them knowing the others exist.
+5. **Side effects** — the settings ViewModel reschedules reminders; the
+   analytics repository records the import's shape.
+
+Settings changes follow the same shape through `SettingsRepository.changes`, so
+switching tier on the Settings tab updates Today before the animation finishes.
+
+## Time logic
+
+All of it is pure and unit tested; no widget recomputes state during a build.
+
+`resolveStatus(meal, now)` in `lib/core/utils/date_utils.dart` is the single
+source of truth:
+
+- `servingNow` when `startTime <= now <= endTime`
+- `upcoming` when `now < startTime`
+- `closed` when `now > endTime`
+
+`resolveFocus(mess, now, timings)` picks what the hero card leads with:
+
+1. a meal being served right now, else
+2. the next meal still to open today, else
+3. the first meal of the next day the document covers — the after-dinner
+   rollover.
+
+It returns `null` when the month runs out, which is what renders the
+"next month isn't up yet" state.
+
+Times are compared as `MinuteOfDay` — minutes since midnight — never as
+strings. `HomeViewModel` owns a single one-second `Timer.periodic` that drives
+the countdown and is cancelled in `dispose`; no other screen runs a ticker.
+
+## Storage and offline behaviour
+
+The rule the whole app depends on: **never block the first frame on the
+network.**
+
+- `getMenu()` answers from disk. If the cache is empty it tries the network, and
+  only then reports `FailureKind.empty`, which the UI renders as the import
+  prompt.
+- `refreshMenu()` runs afterwards, in the background. A failed refresh never
+  clears what is already on screen.
+- A cache that no longer parses is treated as *absent*, not as an error, so a
+  bad write can never brick the app.
+- Imported and downloaded menus are both stored as the same JSON, so the cache
+  format never depends on where a menu came from.
+
+Everything lives in `SharedPreferences`: the menu document, its source and
+timestamp, and the settings blob. No database, no files on disk.
+
+### JSON contract
 
 ```jsonc
 {
   "schemaVersion": 1,
   "month": "2026-08",          // yyyy-MM, must match the month it covers
   "campus": "VIT-AP",
-  "messes": [                  // exactly two: "veg-nonveg" and "special"
+  "messes": [                  // one per subscription tier
     {
       "id": "veg-nonveg",
       "name": "Veg & Non-Veg",
-      "days": [                // every day of the month, flat and date-keyed
+      "days": [                // flat and date-keyed, not a weekday rotation
         {
           "date": "2026-08-17",
           "weekday": "Mon",
-          "meals": [           // in order
+          "meals": [
             {
               "type": "breakfast",   // breakfast | lunch | snacks | dinner
               "startTime": "07:15",  // HH:mm, 24-hour
               "endTime": "09:00",
               "items": [
                 { "name": "Carrot Idly", "variant": null },
-                { "name": "Telangana Chicken Curry", "variant": "nonveg" },
+                { "name": "Chicken Curry", "variant": "nonveg" },
                 { "name": "Achari Paneer", "variant": "veg" }
               ]
             }
@@ -267,289 +309,95 @@ survives — the now-serving card stays the only saturated element in both.
 }
 ```
 
-`days` is a flat date-keyed list — there is no weekday-rotation logic on the
-client, a date lookup is direct. Parsing degrades rather than crashing: a
-malformed item is dropped, a malformed window falls back to the canonical one,
-a malformed day is skipped, and a document that yields no tier at all is
-rejected wholesale with the previous cache left intact.
-
-## Architecture
-
-Strict MVVM with `provider` + `ChangeNotifier`, dependencies resolved through
-`get_it`. The layering is enforced without exception:
-
-```
-View  ──reads──>  ViewModel  ──depends on──>  Repository (interface)
-                                                    │
-                                                    ▼
-                                              Service (HTTP / disk / platform)
-```
-
-### Layer responsibilities
-
-| Layer | Owns | Never does |
-| --- | --- | --- |
-| **Views** (`lib/views`) | Layout, animation, local widget state (expansion, text controllers) | Business logic; calling a service or repository; `setState` for anything a ViewModel owns |
-| **ViewModels** (`lib/viewmodels`) | Derived state, the one-second ticker, loading/error lifecycle | Importing Flutter widget libraries; touching concrete implementations or services |
-| **Repositories** (`lib/repositories`) | Caching policy, scheduling policy, returning `Result<T>` | Throwing to the ViewModel layer |
-| **Services** (`lib/services`) | HTTP, `SharedPreferences`, file picking, Excel decoding, notifications | Anything above them |
-| **Models** (`lib/models`) | Immutable value types, `fromJson`/`toJson`, `copyWith`, equality | Crashing on a missing or null field |
-
-A few consequences worth calling out:
-
-- **ViewModels import only `package:flutter/foundation.dart`.** `ChangeNotifier`
-  lives there; widgets do not. This is what keeps them unit-testable.
-- **Repositories return `Result<T>`** — a sealed `Success | Failure` with a
-  `FailureKind` the UI maps to a designed error screen. No exception ever
-  reaches a ViewModel.
-- **Views never see a `Result`.** ViewModels expose `state`, `errorKind` and
-  `errorMessage`; `ErrorState.forFailure` turns those into a screen.
-- **Settings changes broadcast.** `SettingsRepository` exposes a stream, so
-  switching tier on the Settings screen updates Home, Week and Search without
-  any of them knowing the others exist.
-
-### Caching and offline behaviour
-
-`MenuRepositoryImpl.getMenu()` resolves in this order, and **never blocks on the
-network**:
-
-1. the cached document, returned immediately;
-2. a live fetch, only if nothing is cached;
-3. otherwise a `FailureKind.empty` failure, which every screen renders as the
-   centred import prompt.
-
-`refreshMenu()` then runs in the background. If it fails:
-
-- **with a menu already on screen** → the cache is kept and the failure shows as
-  a quiet "last updated" line, never an error banner;
-- **with nothing on screen** → a full error state with *Try again* and *Import a
-  file instead*.
-
-If the cached month no longer matches the current month, the snapshot reports
-itself stale, a refresh is attempted, and a failure surfaces the
-"menu for this month isn't up yet" state.
-
-The repository also exposes `Stream<MenuSnapshot> changes`, emitted whenever a
-menu is adopted. Home, Week, Search and Settings all subscribe, so importing a
-spreadsheet on any screen updates the others without them knowing each other
-exists.
-
-The app is fully usable offline after the first successful load.
-
-### Time logic
-
-`MealStatus resolveStatus(Meal meal, DateTime now)` in
-`lib/core/utils/date_utils.dart` is a pure function, and every screen derives
-its appearance from it:
-
-- `servingNow` when `startTime <= now <= endTime`
-- `upcoming` when `now < startTime`
-- `closed` when `now > endTime`
-
-Times are parsed into `MinuteOfDay` (minutes since midnight) and compared
-numerically, never as strings. Exactly one meal can be `servingNow`; if user
-overrides make two windows overlap, the earliest-starting one wins.
-`resolveFocus` handles the day rollover — after dinner it looks up the next day
-the document covers, and returns `null` on the last day of the month, which the
-UI renders as the "not up yet" state. All comparisons use device-local time; no
-timezone is assumed.
-
-### Project layout
-
-```
-lib/
-├── main.dart                      # wires DI, then runApp
-├── app.dart                       # MaterialApp, themes, routes, onboarding gate
-├── core/
-│   ├── config/                    # app_config.dart (menuUrl!), meal_timings.dart
-│   ├── constants/strings.dart     # every user-facing string
-│   ├── theme/                     # colours, typography, ThemeExtension
-│   ├── utils/                     # date_utils.dart (resolveStatus), result.dart
-│   └── service_locator.dart       # get_it registrations
-├── models/                        # immutable, self-parsing value types
-├── services/                      # HTTP, storage, file picking, Excel parsing,
-│                                  #   notifications, links, build info
-├── repositories/                  # interfaces + impls, caching & reminder policy
-├── viewmodels/                    # BaseViewModel + one per screen
-├── views/                         # home, week, search, settings, onboarding, shell
-└── widgets/                       # hero card, countdown, meal card, day strip,
-                                   #   developer sheet, stale-import dialog
-```
-
-Android and iOS only. The desktop and web scaffolding `flutter create` generates
-is not in the repository; run `flutter create --platforms=web .` if it is ever
-wanted.
-
----
+`days` is flat and date-keyed, so a date lookup is direct — the rotation is
+expanded at import time, not re-derived on every read. Parsing degrades rather
+than crashing: a malformed item is dropped, a malformed window falls back to the
+canonical one, a malformed day is skipped, and a document that yields no tier at
+all is rejected with the previous cache left intact.
 
 ## Analytics
 
-Usage is measured with **Google Analytics for Firebase**.
+Usage is measured with **Google Analytics for Firebase**, behind
+`AnalyticsRepository` like every other dependency. ViewModels report; views
+never touch analytics. Tab changes are reported by each tab's own `onShown()`,
+because an `IndexedStack` never pushes a route for a navigator observer to see.
 
-### Finishing the setup
+What is recorded is *shape*, not content: which screens are opened, whether
+imports succeed, how many days and tiers a document carried, which meals have
+reminders on. The one exception is search, which sends the typed term
+(lower-cased and capped at 100 characters) alongside its result count, because
+"what do students look for and not find" is the point of measuring it. **The
+menu itself never leaves the device** — no dish names, no imported file, and no
+personal data are ever uploaded.
 
-The code is complete and wired; it needs one per-project file that only your
-Google account can produce. Until it is added the app runs normally and simply
-collects nothing — `AnalyticsService.initialize` fails softly and every log
-call becomes a no-op.
+Consent lives in the repository and is applied at the SDK level, so opting out
+stops collection rather than merely dropping events. Analytics can never break
+the app: no method returns a failure, every SDK call is wrapped, and an
+unconfigured build degrades to console echoes.
 
-1. Create a Firebase project at <https://console.firebase.google.com> and add
-   two apps to it:
-   - **Android** — package name `com.vitap.messmate`
-   - **iOS** — the bundle id from `ios/Runner.xcodeproj`
-2. Download and drop in the config files:
-   - `android/app/google-services.json`
-   - `ios/Runner/GoogleService-Info.plist` (add it to the Runner target in Xcode)
-3. Apply the Google Services Gradle plugin.
+## Project layout
 
-   In `android/settings.gradle.kts`, inside the `plugins { }` block:
+```
+lib/
+├── main.dart                     # wires DI, then runApp
+├── app.dart                      # MaterialApp, themes, onboarding gate
+├── core/
+│   ├── config/                   # app_config.dart, meal_timings.dart
+│   ├── constants/                # strings.dart, analytics_events.dart
+│   ├── theme/                    # palette, typography, ThemeExtension
+│   ├── utils/                    # date_utils, dish_classifier, result
+│   └── service_locator.dart      # the only get_it registrations
+├── models/                       # immutable, self-parsing value types
+├── services/                     # HTTP, storage, file picking, Excel parsing,
+│                                 #   notifications, links, build info
+├── repositories/                 # interfaces + impls: caching, reminders,
+│                                 #   analytics consent, links
+├── viewmodels/                   # BaseViewModel + one per screen
+├── views/                        # home, week, search, settings, onboarding,
+│                                 #   shell
+└── widgets/                      # hero card, countdown, meal card, day strip,
+                                  #   developer sheet, stale-import dialog
+```
 
-   ```kotlin
-   id("com.google.gms.google-services") version "4.4.2" apply false
-   ```
+Android and iOS only. Every user-facing string lives in
+`core/constants/strings.dart`; widgets never hold literal copy.
 
-   In `android/app/build.gradle.kts`, inside its `plugins { }` block:
+### Design
 
-   ```kotlin
-   id("com.google.gms.google-services")
-   ```
+Dark-first, warm: a deep charcoal-brown canvas rather than neutral grey, with
+**saffron reserved exclusively for the meal being served right now** — the only
+saturated colour in the app, so it always means one thing. Semantic roles live
+in a `ThemeExtension<MessColors>`, and both light and dark themes are complete;
+the choice is persisted (system / light / dark).
 
-That is the whole change. Nothing in `lib/` needs editing — analytics detects
-that Firebase started and begins reporting.
-
-> The Gradle plugin **fails the build when `google-services.json` is missing**,
-> which is why it is not applied in the repository as shipped. Add the file and
-> the plugin together.
-
-### Verifying it works
-
-Events are echoed to the console in debug builds, so the wiring can be checked
-before Firebase exists:
+## Running it
 
 ```bash
-adb logcat | grep "\[analytics\]"
+flutter pub get
 ```
-
-Once Firebase is live, DebugView gives a real-time feed:
 
 ```bash
-adb shell setprop debug.firebase.analytics.app com.vitap.messmate
+flutter run
 ```
 
-### What is measured
+Requires Flutter **3.41+** on stable (Dart 3.11, sound null safety). Android
+needs core library desugaring, already configured, because
+`flutter_local_notifications` uses `java.time`.
 
-| Event | Fired when | Parameters |
-| --- | --- | --- |
-| `screen_view` | A tab or the onboarding screen is shown | `screen_name` |
-| `onboarding_completed` | First-run choice is saved | `mess_id`, `enabled` |
-| `menu_imported` | A spreadsheet is parsed and adopted | `month`, `day_count`, `tier_count` |
-| `menu_import_failed` | A chosen file could not be used | `reason` |
-| `menu_refreshed` / `menu_refresh_failed` | Remote document downloaded / failed | shape / `reason` |
-| `menu_empty_prompt_shown` | The import prompt is shown (once per empty state) | — |
-| `search` | A dish search settles | `search_term`, `result_count` |
-| `meal_expanded` | A meal card is opened | `meal_type`, `meal_status` |
-| `day_selected` | A day is chosen in the month browser | `days_from_today` |
-| `pull_to_refresh` | Home is pulled to refresh | — |
-| `tier_changed` | Subscription tier switched | `mess_id` (also set as a user property) |
-| `meal_timing_changed` | A window is overridden or reset | `meal_type`, `is_reset` |
-| `theme_changed` | Light/dark/system chosen | `theme_mode` |
-| `reminders_toggled` / `reminders_blocked` | Reminders switched / permission refused | `enabled` / — |
-| `analytics_toggled` | Consent changed | `enabled` |
-
-The vocabulary lives in `lib/core/constants/analytics_events.dart`, so the
-whole schema is reviewable in one file and no call site invents a name.
-
-### Privacy
-
-- **Consent is a first-class setting.** Settings → Privacy → *Share anonymous
-  usage data*, on by default, persisted with the rest of the settings. Turning
-  it off calls `setAnalyticsCollectionEnabled(false)`, so data stops leaving
-  the device rather than merely being dropped in the app.
-- **No dish names are sent.** Menu events carry only shape — month, day count,
-  tier count.
-- **No identifiers are set** beyond Firebase's own install id; the only user
-  property is the subscription tier.
-- `search_term` is the dish text a student typed, lowercased and truncated to
-  100 characters — the app's most valuable signal ("when is chicken biryani
-  next"), and what GA4's reserved `search` event is designed for.
-
-### Layering
-
-`AnalyticsService` is the only file that imports the Firebase SDK.
-`AnalyticsRepository` owns the schema and the consent gate; ViewModels depend
-on that interface, exactly like every other repository. Views never touch
-analytics — tab changes are reported by each tab's own ViewModel through
-`onShown()`, because an `IndexedStack` never pushes a route for the navigator
-observer to see.
-
-Analytics can never break the app: no method returns a failure, every SDK call
-is wrapped, and an unconfigured build degrades to console echoes.
-
-## Notifications
-
-A local notification fires 15 minutes before each enabled meal opens, carrying
-the meal name and its first three dishes. The schedule is rebuilt from scratch
-on every tier change, timing change and menu refresh, so it can never drift or
-duplicate. Permission is requested at the moment the student turns reminders on
-— not as a cold-start surprise — and a decline is handled gracefully: the switch
-stays off and Settings explains why.
-
-Reminders use `exactAllowWhileIdle` and declare `SCHEDULE_EXACT_ALARM`: a nudge
-that the system batches half an hour late is worse than no nudge at all. When
-that permission is not granted the app falls back to `inexactAllowWhileIdle`
-rather than failing, and Settings says so. See "Play Store notes" below — the
-permission is restricted and has to be justified on the listing.
-
----
-
-## Releasing to Play
-
-### 1. Signing
-
-The release build is signed from `android/key.properties`, which is **not** in
-version control. Create the keystore once and keep it safe — losing it means
-never being able to update the listing again:
+### Tests
 
 ```bash
-keytool -genkey -v -keystore ~/messup-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+flutter test
 ```
 
-Then write `android/key.properties` (git-ignored, along with `*.jks`):
-
-```properties
-storePassword=<the password you just chose>
-keyPassword=<the same, unless you set a separate key password>
-keyAlias=upload
-storeFile=/Users/you/messup-upload.jks
-```
-
-Without that file the build still works but falls back to the **debug** key,
-which Play rejects. `flutter build appbundle --release` prints nothing about
-this, so check the file exists before uploading.
-
-### 2. Build the bundle
+205 tests, no widget golden files and no mocking framework — fakes are written
+by hand against the interfaces. Coverage concentrates on the parts that are
+easy to get quietly wrong: the Excel parser's three layouts and year inference,
+meal-status and focus resolution, cache ordering, reminder scheduling, dish
+classification, and the analytics parameter contract.
 
 ```bash
-flutter build appbundle --release
+flutter analyze
 ```
 
-The `.aab` lands in `build/app/outputs/bundle/release/`. Upload that, not an
-APK — Play splits it per device, so the actual download is a fraction of the
-bundle's size. Bump `version:` in `pubspec.yaml` for every upload; the build
-number after `+` must strictly increase.
-
-### 3. Play Store notes
-
-- **Exact alarms.** `SCHEDULE_EXACT_ALARM` is a restricted permission. Meal
-  reminders are a defensible use, but the listing has to declare it, and Google
-  may push back. The app already degrades to inexact scheduling when the
-  permission is refused, so dropping it from the manifest is a safe fallback if
-  the declaration is rejected.
-- **Data safety.** The app sends usage events to Google Analytics for Firebase,
-  so the Data safety form must declare app-activity and device-identifier
-  collection, and the listing needs a privacy policy URL.
-- **Application id.** `com.vitap.messmate` predates the rename to MessUp. It is
-  what `google-services.json` is registered against and it is permanent once
-  published, so changing it means a new Firebase Android app and a new listing.
-- **Store icon.** Play wants a 512×512 32-bit PNG — `assets/icon/app_icon.png`
-  is already exactly that.
+Zero warnings is the standing bar.
